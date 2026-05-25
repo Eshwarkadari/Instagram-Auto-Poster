@@ -1,78 +1,94 @@
 """
 caption_generator.py
-Generates Instagram captions for Pinterest content
-Author: Kadari Eshwar
+Generates Instagram captions for posts
+Author: Kadari Eshwar | B.Tech ECE, JNTU Hyderabad
 """
 
 import random
 
-# Hashtag sets by topic — add more as needed
-HASHTAG_SETS = {
-    "general": "#instagram #viral #trending #explore #daily #content #post #reels #fyp #foryou",
-    "nature":  "#nature #naturephotography #beautiful #landscape #earth #travel #adventure #outdoors",
-    "food":    "#food #foodie #foodphotography #delicious #yummy #recipe #cooking #chef #homemade",
-    "fashion": "#fashion #style #outfit #ootd #trendy #clothing #look #aesthetic #instafashion",
-    "tech":    "#technology #tech #innovation #gadgets #digital #future #ai #programming #coding",
-    "motivation": "#motivation #inspiration #success #mindset #goals #hustle #positivity #growth",
+# Caption templates by category
+CAPTIONS = {
+    "nature": [
+        "🌿 Nature never goes out of style. ✨ #nature #beautiful #photography #naturelover #aesthetic",
+        "🍃 Find peace in every leaf. 🌱 #nature #green #peaceful #photography #naturalbeauty",
+        "🌸 Beauty is everywhere you look. 🌺 #flowers #nature #photography #beautiful #colorful",
+    ],
+    "travel": [
+        "✈️ The world is too beautiful not to explore. 🌍 #travel #explore #wanderlust #adventure #photography",
+        "🗺️ Every journey begins with a single step. 👣 #travel #adventure #explore #wanderlust #travelblogger",
+        "🌅 Collecting memories, not things. 📸 #travel #memories #explore #beautiful #photography",
+    ],
+    "food": [
+        "🍽️ Good food = Good mood! 😋 #food #foodie #delicious #yummy #foodphotography",
+        "👨‍🍳 Life is too short for bad food. 🍴 #food #foodlover #delicious #foodphotography #yummy",
+        "🤤 Eating my way through life. 😍 #food #foodie #delicious #tasty #foodphotography",
+    ],
+    "fashion": [
+        "👗 Style is a way to say who you are. ✨ #fashion #style #ootd #fashionista #aesthetic",
+        "💫 Dress like you're already famous. 👑 #fashion #style #ootd #outfitoftheday #fashionblogger",
+        "🌟 Confidence is the best outfit. 💃 #fashion #style #ootd #fashionista #beautiful",
+    ],
+    "motivation": [
+        "💪 Dream it. Believe it. Achieve it. 🚀 #motivation #inspiration #success #mindset #hustle",
+        "✨ Every day is a new beginning. 🌅 #motivation #inspiration #positivity #mindset #success",
+        "🔥 Work hard in silence. Let success make the noise. 💯 #motivation #success #hustle #grind #goals",
+    ],
+    "default": [
+        "✨ Beautiful moments captured. 📸 #photography #beautiful #amazing #aesthetic #instagood",
+        "🌟 Life is beautiful. Enjoy every moment. 💫 #life #beautiful #moments #photography #amazing",
+        "📸 A picture says a thousand words. 🎨 #photography #art #beautiful #creative #aesthetic",
+        "💫 Creating memories one photo at a time. ✨ #photography #memories #beautiful #amazing #instagood",
+        "🌈 Colors of life. 🎨 #colorful #beautiful #photography #aesthetic #amazing",
+    ]
 }
 
-CAPTION_TEMPLATES = [
-    "✨ {title}
-
-{hashtags}",
-    "🔥 {title}
-
-Double tap if you love this! ❤️
-
-{hashtags}",
-    "💫 {title}
-
-Save this for later! 🔖
-
-{hashtags}",
-    "👀 {title}
-
-What do you think? Comment below! 👇
-
-{hashtags}",
-    "⭐ {title}
-
-Share with someone who needs to see this! 📲
-
-{hashtags}",
-    "🎯 {title}
-
-Follow for more content like this! 🚀
-
-{hashtags}",
-    "💥 {title}
-
-Tag a friend! 👇
-
-{hashtags}",
+HASHTAG_SETS = [
+    "#instagood #photooftheday #beautiful #photography #picoftheday #instagram #photo #art #follow #nature",
+    "#instadaily #photography #love #beautiful #happy #cute #fashion #art #photographer #style",
+    "#explore #viral #trending #reels #instareels #share #like #comment #follow #fyp",
 ]
 
-def generate_caption(title: str = "", topic: str = "general", custom: str = "") -> str:
+def generate_caption(custom_caption=None, category="default"):
     """
-    Generate an Instagram caption.
-    - If custom caption provided, use it + hashtags
-    - Otherwise generate from title + template
+    Generate a caption for an Instagram post.
+    If custom_caption provided, enhance it with hashtags.
+    Otherwise generate from templates.
     """
-    hashtags = HASHTAG_SETS.get(topic, HASHTAG_SETS["general"])
+    if custom_caption and len(custom_caption.strip()) > 5:
+        # Enhance custom caption with hashtags
+        hashtags = random.choice(HASHTAG_SETS)
+        return f"{custom_caption.strip()}
 
-    if custom and custom.strip():
-        return f"{custom.strip()}\n\n{hashtags}"
+{hashtags}"
 
-    clean_title = title.strip() if title else "Amazing content you don't want to miss"
-    # Remove Pinterest-specific text
-    for remove in ["on Pinterest", "- Pinterest", "| Pinterest"]:
-        clean_title = clean_title.replace(remove, "").strip()
+    # Generate from template
+    templates = CAPTIONS.get(category, CAPTIONS["default"])
+    caption   = random.choice(templates)
 
-    template = random.choice(CAPTION_TEMPLATES)
-    return template.format(title=clean_title, hashtags=hashtags)
+    # Add extra hashtag set
+    extra_tags = random.choice(HASHTAG_SETS)
+    return f"{caption}
 
+{extra_tags}"
+
+def detect_category(pinterest_url):
+    """Try to detect content category from URL."""
+    url_lower = pinterest_url.lower()
+    if any(w in url_lower for w in ["nature","flower","forest","plant","green"]):
+        return "nature"
+    if any(w in url_lower for w in ["travel","trip","city","explore","wanderlust"]):
+        return "travel"
+    if any(w in url_lower for w in ["food","recipe","cook","eat","restaurant"]):
+        return "food"
+    if any(w in url_lower for w in ["fashion","style","outfit","dress","clothing"]):
+        return "fashion"
+    if any(w in url_lower for w in ["motivation","quote","success","inspire"]):
+        return "motivation"
+    return "default"
 
 if __name__ == "__main__":
-    print(generate_caption("Beautiful sunset photography", "nature"))
-    print("---")
-    print(generate_caption(custom="Check out this amazing recipe! 🍕"))
+    print("=== Caption Generator Test ===")
+    print("\nAuto-generated caption:")
+    print(generate_caption())
+    print("\nCustom caption enhanced:")
+    print(generate_caption("Check out this amazing view!"))
