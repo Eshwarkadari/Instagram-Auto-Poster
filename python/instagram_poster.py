@@ -1,119 +1,111 @@
 """
 instagram_poster.py
-Posts image or video to Instagram Business Account via Facebook Graph API
-Author: Kadari Eshwar
-
-Requirements:
-  - Instagram Business Account linked to Facebook Page
-  - Facebook App with instagram_basic, instagram_content_publish permissions
-  - Long-lived access token
+Posts images/videos to Instagram via Facebook Graph API
+Author: Kadari Eshwar | B.Tech ECE, JNTU Hyderabad
 """
 
-import requests, os, time
+import requests
+import os
+import time
 
-GRAPH_URL = "https://graph.facebook.com/v18.0"
+# ── Config (set these as environment variables) ────────────────────────────
+INSTAGRAM_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID", "YOUR_INSTAGRAM_ACCOUNT_ID")
+ACCESS_TOKEN         = os.getenv("FACEBOOK_ACCESS_TOKEN",  "YOUR_ACCESS_TOKEN")
+API_VERSION          = "v18.0"
+BASE_URL             = f"https://graph.facebook.com/{API_VERSION}"
 
-def post_image(ig_user_id: str, access_token: str, image_url: str, caption: str) -> dict:
-    """Post an image to Instagram. image_url must be a public URL."""
+def upload_image_container(image_url, caption):
+    """Step 1: Create a media container for image post."""
+    url    = f"{BASE_URL}/{INSTAGRAM_ACCOUNT_ID}/media"
+    params = {
+        "image_url":    image_url,
+        "caption":      caption,
+        "access_token": ACCESS_TOKEN,
+    }
+    resp = requests.post(url, params=params)
+    data = resp.json()
+    if "id" in data:
+        print(f"✅ Image container created: {data['id']}")
+        return data["id"]
+    print(f"❌ Container error: {data}")
+    return None
 
-    # Step 1: Create media container
-    print("📤 Creating media container...")
-    r = requests.post(
-        f"{GRAPH_URL}/{ig_user_id}/media",
-        data={
-            "image_url":    image_url,
-            "caption":      caption,
-            "access_token": access_token,
-        }
-    )
-    data = r.json()
-    if "id" not in data:
-        print(f"❌ Container error: {data}")
-        return data
+def upload_video_container(video_url, caption):
+    """Step 1: Create a media container for video/reel post."""
+    url    = f"{BASE_URL}/{INSTAGRAM_ACCOUNT_ID}/media"
+    params = {
+        "video_url":    video_url,
+        "caption":      caption,
+        "media_type":   "REELS",
+        "access_token": ACCESS_TOKEN,
+    }
+    resp = requests.post(url, params=params)
+    data = resp.json()
+    if "id" in data:
+        print(f"✅ Video container created: {data['id']}")
+        return data["id"]
+    print(f"❌ Container error: {data}")
+    return None
 
-    container_id = data["id"]
-    print(f"✅ Container created: {container_id}")
+def check_container_status(container_id):
+    """Check if media container is ready to publish."""
+    url    = f"{BASE_URL}/{container_id}"
+    params = {"fields": "status_code", "access_token": ACCESS_TOKEN}
+    resp   = requests.get(url, params=params)
+    data   = resp.json()
+    return data.get("status_code", "ERROR")
 
-    # Step 2: Wait for container to be ready
-    time.sleep(5)
+def publish_container(container_id):
+    """Step 2: Publish the media container to Instagram."""
+    url    = f"{BASE_URL}/{INSTAGRAM_ACCOUNT_ID}/media_publish"
+    params = {"creation_id": container_id, "access_token": ACCESS_TOKEN}
+    resp   = requests.post(url, params=params)
+    data   = resp.json()
+    if "id" in data:
+        print(f"✅ Post published! Post ID: {data['id']}")
+        return data["id"]
+    print(f"❌ Publish error: {data}")
+    return None
 
-    # Step 3: Publish
-    print("🚀 Publishing post...")
-    r2 = requests.post(
-        f"{GRAPH_URL}/{ig_user_id}/media_publish",
-        data={
-            "creation_id":  container_id,
-            "access_token": access_token,
-        }
-    )
-    result = r2.json()
-    if "id" in result:
-        print(f"✅ Posted! Post ID: {result['id']}")
-    else:
-        print(f"❌ Publish error: {result}")
-    return result
-
-
-def post_video(ig_user_id: str, access_token: str, video_url: str, caption: str) -> dict:
-    """Post a video/reel to Instagram."""
-
-    print("📤 Creating video container...")
-    r = requests.post(
-        f"{GRAPH_URL}/{ig_user_id}/media",
-        data={
-            "media_type":   "REELS",
-            "video_url":    video_url,
-            "caption":      caption,
-            "share_to_feed": "true",
-            "access_token": access_token,
-        }
-    )
-    data = r.json()
-    if "id" not in data:
-        print(f"❌ Container error: {data}")
-        return data
-
-    container_id = data["id"]
-    print(f"✅ Container: {container_id} — waiting for processing...")
-
-    # Wait for video to process (up to 2 minutes)
-    for i in range(24):
-        time.sleep(5)
-        status_r = requests.get(
-            f"{GRAPH_URL}/{container_id}",
-            params={"fields": "status_code", "access_token": access_token}
-        )
-        status = status_r.json().get("status_code")
-        print(f"  Status: {status} ({(i+1)*5}s)")
+def post_image(image_url, caption):
+    """Post an image to Instagram."""
+    print(f"📸 Posting image...")
+    container_id = upload_image_container(image_url, caption)
+    if not container_id:
+        return None
+    # Wait for container to be ready
+    for _ in range(10):
+        status = check_container_status(container_id)
         if status == "FINISHED":
             break
-        if status == "ERROR":
-            print("❌ Video processing failed")
-            return {"error": "Video processing failed"}
+        print(f"   Waiting... status: {status}")
+        time.sleep(3)
+    return publish_container(container_id)
 
-    # Publish
-    r2 = requests.post(
-        f"{GRAPH_URL}/{ig_user_id}/media_publish",
-        data={"creation_id": container_id, "access_token": access_token}
-    )
-    result = r2.json()
-    if "id" in result:
-        print(f"✅ Video posted! Post ID: {result['id']}")
-    else:
-        print(f"❌ Publish error: {result}")
-    return result
+def post_video(video_url, caption):
+    """Post a video/reel to Instagram."""
+    print(f"🎥 Posting video/reel...")
+    container_id = upload_video_container(video_url, caption)
+    if not container_id:
+        return None
+    # Videos take longer to process
+    print("   Processing video (this takes ~30 seconds)...")
+    for _ in range(20):
+        status = check_container_status(container_id)
+        if status == "FINISHED":
+            break
+        print(f"   Status: {status}")
+        time.sleep(5)
+    return publish_container(container_id)
 
+def post_media(media_url, caption, media_type="image"):
+    """Auto-detect and post image or video."""
+    if media_type == "video":
+        return post_video(media_url, caption)
+    return post_image(media_url, caption)
 
-def get_ig_user_id(page_access_token: str, page_id: str) -> str:
-    """Get Instagram Business Account ID linked to Facebook Page."""
-    r = requests.get(
-        f"{GRAPH_URL}/{page_id}",
-        params={"fields": "instagram_business_account", "access_token": page_access_token}
-    )
-    data = r.json()
-    ig_id = data.get("instagram_business_account", {}).get("id")
-    if ig_id:
-        print(f"✅ Instagram User ID: {ig_id}")
-    else:
-        print(f"❌ Could not get Instagram ID: {data}")
-    return ig_id
+if __name__ == "__main__":
+    # Test post
+    print("=== Instagram Poster Test ===")
+    print(f"Account ID: {INSTAGRAM_ACCOUNT_ID}")
+    print(f"Token set: {'Yes' if ACCESS_TOKEN != 'YOUR_ACCESS_TOKEN' else 'No - set env vars!'}")
