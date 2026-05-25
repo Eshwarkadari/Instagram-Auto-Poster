@@ -1,5 +1,5 @@
 {
-  "name": "Instagram Auto Poster",
+  "name": "Instagram Auto Poster \u2014 GitHub Links",
   "nodes": [
     {
       "parameters": {
@@ -12,72 +12,54 @@
           ]
         }
       },
-      "name": "Schedule (Every 8 Hours)",
+      "name": "Every 8 Hours",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
-        240,
+        200,
         300
       ],
-      "id": "node1"
+      "id": "n1"
     },
     {
       "parameters": {
-        "operation": "read",
-        "documentId": {
-          "__rl": true,
-          "value": "={{$env.GOOGLE_SHEET_ID}}",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Sheet1",
-          "mode": "name"
-        },
-        "options": {}
-      },
-      "name": "Read Google Sheet",
-      "type": "n8n-nodes-base.googleSheets",
-      "position": [
-        460,
-        300
-      ],
-      "id": "node2"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "string": [
+        "url": "=https://api.github.com/repos/{{$env.GITHUB_REPO}}/contents/links.txt",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "value1": "={{$json.status}}",
-              "operation": "equals",
-              "value2": "pending"
+              "name": "Authorization",
+              "value": "=Bearer {{$env.GITHUB_TOKEN}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
             }
           ]
         }
       },
-      "name": "Filter Pending Posts",
-      "type": "n8n-nodes-base.filter",
+      "name": "Read links.txt from GitHub",
+      "type": "n8n-nodes-base.httpRequest",
       "position": [
-        680,
+        420,
         300
       ],
-      "id": "node3"
+      "id": "n2"
     },
     {
       "parameters": {
-        "amount": 3
+        "jsCode": "\n// Decode base64 content from GitHub API\nconst raw  = $input.first().json.content;\nconst sha  = $input.first().json.sha;\nconst text = Buffer.from(raw, 'base64').toString('utf-8');\n\n// Parse links (skip comments and empty lines)\nconst links = text.split('\\n')\n  .map(l => l.trim())\n  .filter(l => l && !l.startsWith('#') && l.includes('pin'));\n\n// Take first 3\nconst toPost = links.slice(0, 3);\nconst remaining = links.slice(3);\n\nreturn toPost.map(url => ({\n  json: { url, sha, allLinks: links, remaining }\n}));\n"
       },
-      "name": "Limit to 3 Posts",
-      "type": "n8n-nodes-base.limit",
+      "name": "Parse & Pick 3 Links",
+      "type": "n8n-nodes-base.code",
       "position": [
-        900,
+        640,
         300
       ],
-      "id": "node4"
+      "id": "n3"
     },
     {
       "parameters": {
-        "url": "={{$json.pinterest_url}}",
+        "url": "={{$json.url}}",
         "options": {
           "redirect": {
             "redirect": {
@@ -95,22 +77,22 @@
       "name": "Fetch Pinterest Page",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
-        1120,
+        860,
         300
       ],
-      "id": "node5"
+      "id": "n4"
     },
     {
       "parameters": {
-        "jsCode": "\n// Extract image URL from Pinterest HTML\nconst html = $input.first().json.data || '';\n\n// Try to find high-res image\nconst patterns = [\n  /\"contentUrl\":\"(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"]+)\"/,\n  /\"url\":\"(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"]+)\"/,\n  /(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"\\s]+\\.(?:jpg|jpeg|png))/,\n  /(https:\\/\\/i\\.pinimg\\.com\\/736x\\/[^\"\\s]+\\.(?:jpg|jpeg|png))/,\n];\n\nlet mediaUrl = null;\nlet mediaType = 'image';\n\nfor (const pattern of patterns) {\n  const match = html.match(pattern);\n  if (match) {\n    mediaUrl = match[1];\n    break;\n  }\n}\n\n// Check for video\nconst videoMatch = html.match(/\"contentUrl\":\"(https:\\/\\/v[^\"]+\\.mp4[^\"]*)\"/);\nif (videoMatch) {\n  mediaUrl = videoMatch[1];\n  mediaType = 'video';\n}\n\n// Generate caption\nconst pinterestUrl = $input.first().json.pinterest_url || '';\nconst customCaption = $input.first().json.description || '';\n\nconst captions = [\n  '\u2728 Beautiful moments captured. \ud83d\udcf8 #photography #beautiful #amazing #aesthetic #instagood #viral #trending',\n  '\ud83c\udf1f Life is beautiful. Enjoy every moment. \ud83d\udcab #life #beautiful #moments #photography #amazing #instagood',\n  '\ud83d\udcf8 A picture says a thousand words. \ud83c\udfa8 #photography #art #beautiful #creative #aesthetic #instagram',\n  '\ud83d\udcab Creating memories one photo at a time. \u2728 #photography #memories #beautiful #amazing #instagood #reels',\n  '\ud83c\udf08 Colors of life. \ud83c\udfa8 #colorful #beautiful #photography #aesthetic #amazing #instagram #viral',\n];\n\nconst caption = customCaption.length > 5\n  ? customCaption + '\\n\\n#instagood #photooftheday #beautiful #photography #instagram'\n  : captions[Math.floor(Math.random() * captions.length)];\n\nreturn [{\n  json: {\n    ...($input.first().json),\n    media_url: mediaUrl,\n    media_type: mediaType,\n    caption: caption,\n    row_index: $input.first().json.row_number || 2,\n  }\n}];\n"
+        "jsCode": "\nconst html = $input.first().json.data || '';\nconst pinterestUrl = $node['Parse & Pick 3 Links'].json.url;\n\n// Extract image URL\nconst patterns = [\n  /\"contentUrl\":\"(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"]+)\"/,\n  /\"url\":\"(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"]+)\"/,\n  /(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"\\s]+\\.(?:jpg|jpeg|png))/,\n  /(https:\\/\\/i\\.pinimg\\.com\\/736x\\/[^\"\\s]+\\.(?:jpg|jpeg|png))/,\n];\n\nlet mediaUrl = null;\nlet mediaType = 'image';\n\n// Check video first\nconst vm = html.match(/\"contentUrl\":\"(https:\\/\\/v[^\"]+\\.mp4[^\"]*)\"/);\nif (vm) { mediaUrl = vm[1]; mediaType = 'video'; }\n\nif (!mediaUrl) {\n  for (const p of patterns) {\n    const m = html.match(p);\n    if (m) { mediaUrl = m[1]; break; }\n  }\n}\n\n// Random caption\nconst captions = [\n  \"\u2728 Beautiful moments captured. \ud83d\udcf8\\n\\n#photography #beautiful #amazing #aesthetic #instagood #viral #trending\",\n  \"\ud83c\udf1f Life is beautiful. Enjoy every moment. \ud83d\udcab\\n\\n#life #beautiful #moments #photography #instagood #explore\",\n  \"\ud83d\udcf8 A picture says a thousand words. \ud83c\udfa8\\n\\n#photography #art #beautiful #creative #aesthetic #photooftheday\",\n  \"\ud83d\udcab Creating memories one photo at a time. \u2728\\n\\n#photography #memories #beautiful #instagood #reels #viral\",\n  \"\ud83c\udf08 Colors of life. \ud83c\udfa8\\n\\n#colorful #beautiful #photography #aesthetic #instagram #viral #trending\",\n  \"\ud83d\udd25 Absolutely stunning! \ud83d\ude0d\\n\\n#stunning #beautiful #photography #amazing #viral #trending #reels\",\n  \"\ud83d\udc8e Pure perfection. \u2728\\n\\n#perfect #beautiful #photography #aesthetic #instagood #amazing\",\n  \"\ud83c\udf38 Beauty is everywhere. \ud83c\udf3a\\n\\n#beauty #beautiful #nature #photography #aesthetic #instagood\",\n];\nconst caption = captions[Math.floor(Math.random() * captions.length)];\n\nreturn [{ json: {\n  ...($node['Parse & Pick 3 Links'].json),\n  media_url: mediaUrl,\n  media_type: mediaType,\n  caption: caption,\n}}];\n"
       },
-      "name": "Extract Media & Generate Caption",
+      "name": "Extract Media + Caption",
       "type": "n8n-nodes-base.code",
       "position": [
-        1340,
+        1080,
         300
       ],
-      "id": "node6"
+      "id": "n5"
     },
     {
       "parameters": {
@@ -123,13 +105,13 @@
           ]
         }
       },
-      "name": "Check Media Found",
+      "name": "Skip if No Media",
       "type": "n8n-nodes-base.filter",
       "position": [
-        1560,
+        1300,
         300
       ],
-      "id": "node7"
+      "id": "n6"
     },
     {
       "parameters": {
@@ -155,23 +137,23 @@
       "name": "Create Instagram Container",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
-        1780,
+        1520,
         300
       ],
-      "id": "node8"
+      "id": "n7"
     },
     {
       "parameters": {
-        "amount": 5,
+        "amount": 8,
         "unit": "seconds"
       },
-      "name": "Wait 5 seconds",
+      "name": "Wait 8s",
       "type": "n8n-nodes-base.wait",
       "position": [
-        2000,
+        1740,
         300
       ],
-      "id": "node9"
+      "id": "n8"
     },
     {
       "parameters": {
@@ -193,85 +175,48 @@
       "name": "Publish to Instagram",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
-        2220,
+        1960,
         300
       ],
-      "id": "node10"
+      "id": "n9"
     },
     {
       "parameters": {
-        "operation": "update",
-        "documentId": {
-          "__rl": true,
-          "value": "={{$env.GOOGLE_SHEET_ID}}",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Sheet1",
-          "mode": "name"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "status": "posted",
-            "posted_date": "={{new Date().toISOString().split('T')[0]}}",
-            "post_id": "={{$json.id}}"
-          }
-        },
-        "where": {
-          "values": [
-            {
-              "column": "pinterest_url",
-              "value": "={{$node['Limit to 3 Posts'].json.pinterest_url}}"
-            }
-          ]
-        }
+        "jsCode": "\n// Remove posted URL from links and update GitHub\nconst postedUrl   = $node['Parse & Pick 3 Links'].json.url;\nconst sha         = $node['Parse & Pick 3 Links'].json.sha;\nconst allLinks    = $node['Parse & Pick 3 Links'].json.allLinks;\nconst postId      = $input.first().json.id;\nconst repo        = $env.GITHUB_REPO;\nconst token       = $env.GITHUB_TOKEN;\n\n// Remove posted link\nconst remaining = allLinks.filter(l => l !== postedUrl);\nconst newContent = \"# Add your Pinterest links below (one per line)\\n# Lines starting with # are ignored\\n\\n\"\n  + remaining.join('\\n') + '\\n';\n\nconst encoded = Buffer.from(newContent).toString('base64');\n\n// Update links.txt\nawait $helpers.httpRequest({\n  method: 'PUT',\n  url: `https://api.github.com/repos/${repo}/contents/links.txt`,\n  headers: {\n    'Authorization': `Bearer ${token}`,\n    'Content-Type': 'application/json',\n  },\n  body: JSON.stringify({\n    message: `Auto: Posted ${postedUrl.slice(-20)}`,\n    content: encoded,\n    sha: sha,\n  }),\n});\n\nreturn [{ json: { success: true, post_id: postId, posted_url: postedUrl }}];\n"
       },
-      "name": "Update Sheet as Posted",
-      "type": "n8n-nodes-base.googleSheets",
+      "name": "Remove from links.txt",
+      "type": "n8n-nodes-base.code",
       "position": [
-        2440,
+        2180,
         300
       ],
-      "id": "node11"
+      "id": "n10"
     }
   ],
   "connections": {
-    "Schedule (Every 8 Hours)": {
+    "Every 8 Hours": {
       "main": [
         [
           {
-            "node": "Read Google Sheet",
+            "node": "Read links.txt from GitHub",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Read Google Sheet": {
+    "Read links.txt from GitHub": {
       "main": [
         [
           {
-            "node": "Filter Pending Posts",
+            "node": "Parse & Pick 3 Links",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Filter Pending Posts": {
-      "main": [
-        [
-          {
-            "node": "Limit to 3 Posts",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Limit to 3 Posts": {
+    "Parse & Pick 3 Links": {
       "main": [
         [
           {
@@ -286,25 +231,25 @@
       "main": [
         [
           {
-            "node": "Extract Media & Generate Caption",
+            "node": "Extract Media + Caption",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Extract Media & Generate Caption": {
+    "Extract Media + Caption": {
       "main": [
         [
           {
-            "node": "Check Media Found",
+            "node": "Skip if No Media",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Check Media Found": {
+    "Skip if No Media": {
       "main": [
         [
           {
@@ -319,14 +264,14 @@
       "main": [
         [
           {
-            "node": "Wait 5 seconds",
+            "node": "Wait 8s",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Wait 5 seconds": {
+    "Wait 8s": {
       "main": [
         [
           {
@@ -341,7 +286,7 @@
       "main": [
         [
           {
-            "node": "Update Sheet as Posted",
+            "node": "Remove from links.txt",
             "type": "main",
             "index": 0
           }
