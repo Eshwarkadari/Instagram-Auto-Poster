@@ -1,52 +1,50 @@
-# Step 1 — Facebook Developer App Setup
+# Step 1 — Get Facebook Access Token & Instagram Account ID
 
-## 1. Create Facebook Developer Account
+## 1. Create Facebook Developer App
 1. Go to **https://developers.facebook.com**
-2. Click **"Get Started"**
-3. Log in with your Facebook account
-4. Verify your account
+2. Click **My Apps → Create App**
+3. Select **Business** → Next
+4. App name: `Instagram Auto Poster` → Create
 
-## 2. Create a New App
-1. Click **"Create App"**
-2. Select **"Business"** as app type
-3. App name: `Instagram Auto Poster`
-4. Contact email: your email
-5. Click **"Create App"**
+## 2. Add Instagram Graph API Product
+1. In app dashboard → **Add Product**
+2. Find **Instagram Graph API** → Set Up
 
-## 3. Add Instagram Graph API
-1. In your app dashboard, click **"Add Product"**
-2. Find **"Instagram Graph API"** → click **"Set Up"**
-
-## 4. Add Your Facebook Page
-1. Go to **App Settings → Basic**
-2. Scroll down → **"Add Platform"** → **"Website"**
-3. Add your website URL (or use `https://localhost`)
-
-## 5. Get a Long-Lived Access Token
+## 3. Get Your Access Token
 1. Go to **Tools → Graph API Explorer**
-2. Select your app from dropdown
-3. Click **"Generate Access Token"**
-4. Check these permissions:
+2. Select your app from the top dropdown
+3. Click **Generate Access Token**
+4. Select these permissions:
    - ✅ `instagram_basic`
    - ✅ `instagram_content_publish`
    - ✅ `pages_read_engagement`
    - ✅ `pages_show_list`
-5. Click **"Generate Access Token"**
-6. Copy this token — you'll need it in n8n
+5. Click **Generate Access Token** → Copy it
 
-## 6. Get Your Instagram Business Account ID
-Run this in your browser (replace YOUR_TOKEN):
+## 4. Get Long-Lived Token (60 days)
+Paste this URL in browser (replace values):
+```
+https://graph.facebook.com/v18.0/oauth/access_token?
+  grant_type=fb_exchange_token&
+  client_id=YOUR_APP_ID&
+  client_secret=YOUR_APP_SECRET&
+  fb_exchange_token=YOUR_SHORT_TOKEN
+```
+Copy the new `access_token` from response.
+
+## 5. Get Your Instagram Account ID
+Paste in browser:
 ```
 https://graph.facebook.com/v18.0/me/accounts?access_token=YOUR_TOKEN
 ```
-Find your page ID, then:
+Copy your `id` (page ID), then:
 ```
 https://graph.facebook.com/v18.0/PAGE_ID?fields=instagram_business_account&access_token=YOUR_TOKEN
 ```
-Copy the `id` value — this is your **Instagram Account ID**
+Copy the `id` inside `instagram_business_account` — this is your **INSTAGRAM_ACCOUNT_ID**
 
 ## ✅ You now have:
-- Facebook Access Token
-- Instagram Account ID
+- `FACEBOOK_ACCESS_TOKEN`
+- `INSTAGRAM_ACCOUNT_ID`
 
-→ Go to **Step 2: Instagram Setup**
+→ Go to Step 2: n8n Setup
