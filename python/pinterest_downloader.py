@@ -1,81 +1,83 @@
 """
 pinterest_downloader.py
-Downloads image or video from a Pinterest URL
-Author: Kadari Eshwar
+Downloads images and videos from Pinterest URLs
+Author: Kadari Eshwar | B.Tech ECE, JNTU Hyderabad
 """
 
-import requests, re, os, json
+import requests
+import re
+import os
 from urllib.parse import urlparse
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
-def get_pinterest_media(url: str, save_dir: str = "downloads") -> dict:
+def get_pinterest_media(url):
     """
-    Download image or video from a Pinterest pin URL.
-    Returns: { "path": "...", "type": "image/video", "title": "..." }
+    Extract direct media URL from a Pinterest link.
+    Returns: (media_url, media_type) where media_type is 'image' or 'video'
     """
-    os.makedirs(save_dir, exist_ok=True)
+    try:
+        # Expand short URLs (pin.it/xxx)
+        if "pin.it" in url:
+            resp = requests.get(url, headers=HEADERS, allow_redirects=True, timeout=10)
+            url  = resp.url
 
-    # Resolve short URLs (pin.it/xxx)
-    if "pin.it" in url:
-        r = requests.get(url, headers=HEADERS, allow_redirects=True)
-        url = r.url
+        # Fetch Pinterest page
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        html = resp.text
 
-    # Fetch pin page
-    r = requests.get(url, headers=HEADERS)
-    html = r.text
+        # Try to find video URL first
+        video_match = re.search(r'"contentUrl":"(https://v[^"]+\.mp4[^"]*)"', html)
+        if video_match:
+            return video_match.group(1), "video"
 
-    # Extract JSON data embedded in page
-    result = {"url": url, "type": "image", "path": None, "title": ""}
-
-    # Try video first
-    video_match = re.search(r'"url"\s*:\s*"(https://v\.pinimg\.com/[^"]+\.mp4[^"]*)"', html)
-    if video_match:
-        media_url = video_match.group(1).replace("\u0026", "&")
-        result["type"] = "video"
-    else:
         # Try high-res image
-        img_match = re.search(r'"orig"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"', html)
-        if not img_match:
-            img_match = re.search(r'"736x"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"', html)
-        if img_match:
-            media_url = img_match.group(1).replace("\u0026", "&")
-        else:
-            # Fallback: og:image
-            og_match = re.search(r'<meta property="og:image" content="([^"]+)"', html)
-            if og_match:
-                media_url = og_match.group(1)
-            else:
-                print(f"❌ Could not find media in: {url}")
-                return result
+        img_patterns = [
+            r'"contentUrl":"(https://i\.pinimg\.com/originals/[^"]+)"',
+            r'"url":"(https://i\.pinimg\.com/originals/[^"]+)"',
+            r'(https://i\.pinimg\.com/originals/[a-z0-9/]+\.(?:jpg|jpeg|png|webp))',
+            r'(https://i\.pinimg\.com/736x/[a-z0-9/]+\.(?:jpg|jpeg|png|webp))',
+        ]
+        for pattern in img_patterns:
+            match = re.search(pattern, html)
+            if match:
+                return match.group(1), "image"
 
-    # Extract title
-    title_match = re.search(r'<meta property="og:title" content="([^"]+)"', html)
-    if title_match:
-        result["title"] = title_match.group(1)
+        return None, None
 
-    # Download
-    ext  = ".mp4" if result["type"] == "video" else ".jpg"
-    pin_id = re.search(r"/pin/(\d+)", url)
-    fname  = f"{pin_id.group(1) if pin_id else 'pin'}{ext}"
-    fpath  = os.path.join(save_dir, fname)
+    except Exception as e:
+        print(f"Error fetching Pinterest URL: {e}")
+        return None, None
 
-    media_r = requests.get(media_url, headers=HEADERS, stream=True)
-    with open(fpath, "wb") as f:
-        for chunk in media_r.iter_content(8192):
+def download_media(url, save_path="downloads"):
+    """Download media from Pinterest and save locally."""
+    os.makedirs(save_path, exist_ok=True)
+
+    media_url, media_type = get_pinterest_media(url)
+    if not media_url:
+        print(f"❌ Could not extract media from: {url}")
+        return None, None
+
+    # Get file extension
+    ext = media_url.split(".")[-1].split("?")[0]
+    if ext not in ["jpg","jpeg","png","mp4","webp"]:
+        ext = "jpg"
+
+    filename = f"{save_path}/media_{hash(url) % 100000}.{ext}"
+
+    resp = requests.get(media_url, headers=HEADERS, stream=True, timeout=30)
+    with open(filename, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=8192):
             f.write(chunk)
 
-    result["path"] = fpath
-    size_kb = os.path.getsize(fpath) // 1024
-    print(f"✅ Downloaded {result['type']}: {fname} ({size_kb}KB)")
-    return result
-
+    print(f"✅ Downloaded: {filename} ({media_type})")
+    return filename, media_type
 
 if __name__ == "__main__":
-    # Test
-    url = input("Enter Pinterest URL: ").strip()
-    result = get_pinterest_media(url)
-    print(json.dumps(result, indent=2))
+    # Test with a Pinterest URL
+    test_url = input("Enter Pinterest URL: ")
+    filename, mtype = download_media(test_url)
+    if filename:
+        print(f"Saved as: {filename} | Type: {mtype}")
