@@ -6,125 +6,350 @@
         "rule": {
           "interval": [
             {
-              "field": "cronExpression",
-              "expression": "0 3 * * *"
-            },
-            {
-              "field": "cronExpression",
-              "expression": "0 7 * * *"
-            },
-            {
-              "field": "cronExpression",
-              "expression": "0 12 * * *"
+              "field": "hours",
+              "hoursInterval": 8
             }
           ]
         }
       },
-      "name": "Schedule (9AM, 1PM, 6PM IST)",
+      "name": "Schedule (Every 8 Hours)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
         240,
         300
       ],
-      "typeVersion": 1.1
+      "id": "node1"
     },
     {
       "parameters": {
-        "command": "cd /home/node/instagram && python3 python/main.py"
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{$env.GOOGLE_SHEET_ID}}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "options": {}
       },
-      "name": "Run Python Script",
-      "type": "n8n-nodes-base.executeCommand",
+      "name": "Read Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
       "position": [
-        480,
+        460,
         300
       ],
-      "typeVersion": 1
+      "id": "node2"
     },
     {
       "parameters": {
         "conditions": {
           "string": [
             {
-              "value1": "={{$json.exitCode}}",
-              "operation": "equal",
-              "value2": "0"
+              "value1": "={{$json.status}}",
+              "operation": "equals",
+              "value2": "pending"
             }
           ]
         }
       },
-      "name": "Check Success",
-      "type": "n8n-nodes-base.if",
+      "name": "Filter Pending Posts",
+      "type": "n8n-nodes-base.filter",
       "position": [
-        720,
+        680,
         300
       ],
-      "typeVersion": 1
+      "id": "node3"
     },
     {
       "parameters": {
-        "message": "\u2705 Instagram Auto Poster ran successfully!\nOutput: ={{$json.stdout}}"
+        "amount": 3
       },
-      "name": "Log Success",
-      "type": "n8n-nodes-base.noOp",
+      "name": "Limit to 3 Posts",
+      "type": "n8n-nodes-base.limit",
       "position": [
-        960,
-        200
+        900,
+        300
       ],
-      "typeVersion": 1
+      "id": "node4"
     },
     {
       "parameters": {
-        "message": "\u274c Instagram Auto Poster failed!\nError: ={{$json.stderr}}"
+        "url": "={{$json.pinterest_url}}",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
       },
-      "name": "Log Error",
-      "type": "n8n-nodes-base.noOp",
+      "name": "Fetch Pinterest Page",
+      "type": "n8n-nodes-base.httpRequest",
       "position": [
-        960,
-        400
+        1120,
+        300
       ],
-      "typeVersion": 1
+      "id": "node5"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Extract image URL from Pinterest HTML\nconst html = $input.first().json.data || '';\n\n// Try to find high-res image\nconst patterns = [\n  /\"contentUrl\":\"(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"]+)\"/,\n  /\"url\":\"(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"]+)\"/,\n  /(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"\\s]+\\.(?:jpg|jpeg|png))/,\n  /(https:\\/\\/i\\.pinimg\\.com\\/736x\\/[^\"\\s]+\\.(?:jpg|jpeg|png))/,\n];\n\nlet mediaUrl = null;\nlet mediaType = 'image';\n\nfor (const pattern of patterns) {\n  const match = html.match(pattern);\n  if (match) {\n    mediaUrl = match[1];\n    break;\n  }\n}\n\n// Check for video\nconst videoMatch = html.match(/\"contentUrl\":\"(https:\\/\\/v[^\"]+\\.mp4[^\"]*)\"/);\nif (videoMatch) {\n  mediaUrl = videoMatch[1];\n  mediaType = 'video';\n}\n\n// Generate caption\nconst pinterestUrl = $input.first().json.pinterest_url || '';\nconst customCaption = $input.first().json.description || '';\n\nconst captions = [\n  '\u2728 Beautiful moments captured. \ud83d\udcf8 #photography #beautiful #amazing #aesthetic #instagood #viral #trending',\n  '\ud83c\udf1f Life is beautiful. Enjoy every moment. \ud83d\udcab #life #beautiful #moments #photography #amazing #instagood',\n  '\ud83d\udcf8 A picture says a thousand words. \ud83c\udfa8 #photography #art #beautiful #creative #aesthetic #instagram',\n  '\ud83d\udcab Creating memories one photo at a time. \u2728 #photography #memories #beautiful #amazing #instagood #reels',\n  '\ud83c\udf08 Colors of life. \ud83c\udfa8 #colorful #beautiful #photography #aesthetic #amazing #instagram #viral',\n];\n\nconst caption = customCaption.length > 5\n  ? customCaption + '\\n\\n#instagood #photooftheday #beautiful #photography #instagram'\n  : captions[Math.floor(Math.random() * captions.length)];\n\nreturn [{\n  json: {\n    ...($input.first().json),\n    media_url: mediaUrl,\n    media_type: mediaType,\n    caption: caption,\n    row_index: $input.first().json.row_number || 2,\n  }\n}];\n"
+      },
+      "name": "Extract Media & Generate Caption",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1340,
+        300
+      ],
+      "id": "node6"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.media_url}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Check Media Found",
+      "type": "n8n-nodes-base.filter",
+      "position": [
+        1560,
+        300
+      ],
+      "id": "node7"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/{{$env.INSTAGRAM_ACCOUNT_ID}}/media",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{$json.media_url}}"
+            },
+            {
+              "name": "caption",
+              "value": "={{$json.caption}}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{$env.FACEBOOK_ACCESS_TOKEN}}"
+            }
+          ]
+        }
+      },
+      "name": "Create Instagram Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1780,
+        300
+      ],
+      "id": "node8"
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "name": "Wait 5 seconds",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        2000,
+        300
+      ],
+      "id": "node9"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/{{$env.INSTAGRAM_ACCOUNT_ID}}/media_publish",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{$json.id}}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{$env.FACEBOOK_ACCESS_TOKEN}}"
+            }
+          ]
+        }
+      },
+      "name": "Publish to Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2220,
+        300
+      ],
+      "id": "node10"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{$env.GOOGLE_SHEET_ID}}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "posted",
+            "posted_date": "={{new Date().toISOString().split('T')[0]}}",
+            "post_id": "={{$json.id}}"
+          }
+        },
+        "where": {
+          "values": [
+            {
+              "column": "pinterest_url",
+              "value": "={{$node['Limit to 3 Posts'].json.pinterest_url}}"
+            }
+          ]
+        }
+      },
+      "name": "Update Sheet as Posted",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        2440,
+        300
+      ],
+      "id": "node11"
     }
   ],
   "connections": {
-    "Schedule (9AM, 1PM, 6PM IST)": {
+    "Schedule (Every 8 Hours)": {
       "main": [
         [
           {
-            "node": "Run Python Script",
+            "node": "Read Google Sheet",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Run Python Script": {
+    "Read Google Sheet": {
       "main": [
         [
           {
-            "node": "Check Success",
+            "node": "Filter Pending Posts",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Check Success": {
+    "Filter Pending Posts": {
       "main": [
         [
           {
-            "node": "Log Success",
+            "node": "Limit to 3 Posts",
             "type": "main",
             "index": 0
           }
-        ],
+        ]
+      ]
+    },
+    "Limit to 3 Posts": {
+      "main": [
         [
           {
-            "node": "Log Error",
+            "node": "Fetch Pinterest Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Pinterest Page": {
+      "main": [
+        [
+          {
+            "node": "Extract Media & Generate Caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Media & Generate Caption": {
+      "main": [
+        [
+          {
+            "node": "Check Media Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Media Found": {
+      "main": [
+        [
+          {
+            "node": "Create Instagram Container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Instagram Container": {
+      "main": [
+        [
+          {
+            "node": "Wait 5 seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 seconds": {
+      "main": [
+        [
+          {
+            "node": "Publish to Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish to Instagram": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet as Posted",
             "type": "main",
             "index": 0
           }
         ]
       ]
     }
+  },
+  "settings": {
+    "executionOrder": "v1"
   }
 }
