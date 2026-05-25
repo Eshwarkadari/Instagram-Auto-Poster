@@ -1,94 +1,25 @@
 """
 caption_generator.py
-Generates Instagram captions for posts
-Author: Kadari Eshwar | B.Tech ECE, JNTU Hyderabad
+Generates Instagram captions with hashtags
+Author: Kadari Eshwar
 """
-
 import random
 
-# Caption templates by category
-CAPTIONS = {
-    "nature": [
-        "🌿 Nature never goes out of style. ✨ #nature #beautiful #photography #naturelover #aesthetic",
-        "🍃 Find peace in every leaf. 🌱 #nature #green #peaceful #photography #naturalbeauty",
-        "🌸 Beauty is everywhere you look. 🌺 #flowers #nature #photography #beautiful #colorful",
-    ],
-    "travel": [
-        "✈️ The world is too beautiful not to explore. 🌍 #travel #explore #wanderlust #adventure #photography",
-        "🗺️ Every journey begins with a single step. 👣 #travel #adventure #explore #wanderlust #travelblogger",
-        "🌅 Collecting memories, not things. 📸 #travel #memories #explore #beautiful #photography",
-    ],
-    "food": [
-        "🍽️ Good food = Good mood! 😋 #food #foodie #delicious #yummy #foodphotography",
-        "👨‍🍳 Life is too short for bad food. 🍴 #food #foodlover #delicious #foodphotography #yummy",
-        "🤤 Eating my way through life. 😍 #food #foodie #delicious #tasty #foodphotography",
-    ],
-    "fashion": [
-        "👗 Style is a way to say who you are. ✨ #fashion #style #ootd #fashionista #aesthetic",
-        "💫 Dress like you're already famous. 👑 #fashion #style #ootd #outfitoftheday #fashionblogger",
-        "🌟 Confidence is the best outfit. 💃 #fashion #style #ootd #fashionista #beautiful",
-    ],
-    "motivation": [
-        "💪 Dream it. Believe it. Achieve it. 🚀 #motivation #inspiration #success #mindset #hustle",
-        "✨ Every day is a new beginning. 🌅 #motivation #inspiration #positivity #mindset #success",
-        "🔥 Work hard in silence. Let success make the noise. 💯 #motivation #success #hustle #grind #goals",
-    ],
-    "default": [
-        "✨ Beautiful moments captured. 📸 #photography #beautiful #amazing #aesthetic #instagood",
-        "🌟 Life is beautiful. Enjoy every moment. 💫 #life #beautiful #moments #photography #amazing",
-        "📸 A picture says a thousand words. 🎨 #photography #art #beautiful #creative #aesthetic",
-        "💫 Creating memories one photo at a time. ✨ #photography #memories #beautiful #amazing #instagood",
-        "🌈 Colors of life. 🎨 #colorful #beautiful #photography #aesthetic #amazing",
-    ]
-}
-
-HASHTAG_SETS = [
-    "#instagood #photooftheday #beautiful #photography #picoftheday #instagram #photo #art #follow #nature",
-    "#instadaily #photography #love #beautiful #happy #cute #fashion #art #photographer #style",
-    "#explore #viral #trending #reels #instareels #share #like #comment #follow #fyp",
+CAPTIONS = [
+    "✨ Beautiful moments captured. 📸\n\n#photography #beautiful #amazing #aesthetic #instagood #viral #trending #reels",
+    "🌟 Life is beautiful. Enjoy every moment. 💫\n\n#life #beautiful #moments #photography #amazing #instagood #explore",
+    "📸 A picture says a thousand words. 🎨\n\n#photography #art #beautiful #creative #aesthetic #instagram #photooftheday",
+    "💫 Creating memories one photo at a time. ✨\n\n#photography #memories #beautiful #amazing #instagood #reels #viral",
+    "🌈 Colors of life. 🎨\n\n#colorful #beautiful #photography #aesthetic #amazing #instagram #viral #trending",
+    "🔥 Absolutely stunning! 😍\n\n#stunning #beautiful #photography #amazing #viral #trending #reels #instagood",
+    "💎 Pure perfection. ✨\n\n#perfect #beautiful #photography #aesthetic #instagood #photooftheday #amazing",
+    "🌸 Beauty is everywhere. 🌺\n\n#beauty #beautiful #nature #photography #aesthetic #amazing #instagood #flowers",
+    "⚡ This is everything! 🙌\n\n#amazing #beautiful #photography #viral #trending #reels #instagood #explore",
+    "🎯 Goals! 💯\n\n#goals #beautiful #amazing #photography #instagood #viral #trending #aesthetic #reels",
 ]
 
-def generate_caption(custom_caption=None, category="default"):
-    """
-    Generate a caption for an Instagram post.
-    If custom_caption provided, enhance it with hashtags.
-    Otherwise generate from templates.
-    """
-    if custom_caption and len(custom_caption.strip()) > 5:
-        # Enhance custom caption with hashtags
-        hashtags = random.choice(HASHTAG_SETS)
-        return f"{custom_caption.strip()}
-
-{hashtags}"
-
-    # Generate from template
-    templates = CAPTIONS.get(category, CAPTIONS["default"])
-    caption   = random.choice(templates)
-
-    # Add extra hashtag set
-    extra_tags = random.choice(HASHTAG_SETS)
-    return f"{caption}
-
-{extra_tags}"
-
-def detect_category(pinterest_url):
-    """Try to detect content category from URL."""
-    url_lower = pinterest_url.lower()
-    if any(w in url_lower for w in ["nature","flower","forest","plant","green"]):
-        return "nature"
-    if any(w in url_lower for w in ["travel","trip","city","explore","wanderlust"]):
-        return "travel"
-    if any(w in url_lower for w in ["food","recipe","cook","eat","restaurant"]):
-        return "food"
-    if any(w in url_lower for w in ["fashion","style","outfit","dress","clothing"]):
-        return "fashion"
-    if any(w in url_lower for w in ["motivation","quote","success","inspire"]):
-        return "motivation"
-    return "default"
-
-if __name__ == "__main__":
-    print("=== Caption Generator Test ===")
-    print("\nAuto-generated caption:")
-    print(generate_caption())
-    print("\nCustom caption enhanced:")
-    print(generate_caption("Check out this amazing view!"))
+def generate(custom=None):
+    """Return a caption — use custom if provided, else random."""
+    if custom and len(custom.strip()) > 5:
+        return custom.strip() + "\n\n#instagood #photooftheday #beautiful #photography #instagram #viral #trending"
+    return random.choice(CAPTIONS)
