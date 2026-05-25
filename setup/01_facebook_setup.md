@@ -1,66 +1,52 @@
-# Step 1 — Facebook & Instagram API Setup
+# Step 1 — Facebook Developer App Setup
 
-## What You Need
-- Facebook Developer Account
-- Instagram Business Account linked to Facebook Page
-- Facebook App with correct permissions
-
----
-
-## Step 1.1 — Create Facebook Developer Account
+## 1. Create Facebook Developer Account
 1. Go to **https://developers.facebook.com**
-2. Click **Get Started** → log in with Facebook
-3. Verify your account with phone number
+2. Click **"Get Started"**
+3. Log in with your Facebook account
+4. Verify your account
 
-## Step 1.2 — Create a Facebook App
-1. Go to **https://developers.facebook.com/apps**
-2. Click **Create App**
-3. Select **Business** type
-4. App name: `Instagram Auto Poster`
-5. Click **Create App**
+## 2. Create a New App
+1. Click **"Create App"**
+2. Select **"Business"** as app type
+3. App name: `Instagram Auto Poster`
+4. Contact email: your email
+5. Click **"Create App"**
 
-## Step 1.3 — Add Instagram Graph API
-1. In your app dashboard → click **Add Product**
-2. Find **Instagram Graph API** → click **Set Up**
+## 3. Add Instagram Graph API
+1. In your app dashboard, click **"Add Product"**
+2. Find **"Instagram Graph API"** → click **"Set Up"**
 
-## Step 1.4 — Get Your Page Access Token
-1. Go to **https://developers.facebook.com/tools/explorer**
-2. Select your App from dropdown
-3. Select your **Facebook Page** (not personal profile)
-4. Under Permissions add:
-   - `instagram_basic`
-   - `instagram_content_publish`
-   - `pages_read_engagement`
-   - `pages_show_list`
-5. Click **Generate Access Token** → approve all permissions
-6. Copy this token → save as `FB_PAGE_ACCESS_TOKEN`
+## 4. Add Your Facebook Page
+1. Go to **App Settings → Basic**
+2. Scroll down → **"Add Platform"** → **"Website"**
+3. Add your website URL (or use `https://localhost`)
 
-## Step 1.5 — Get Your Facebook Page ID
-1. Go to your Facebook Page
-2. Click **About** → scroll down
-3. Find **Page ID** → copy it → save as `FB_PAGE_ID`
+## 5. Get a Long-Lived Access Token
+1. Go to **Tools → Graph API Explorer**
+2. Select your app from dropdown
+3. Click **"Generate Access Token"**
+4. Check these permissions:
+   - ✅ `instagram_basic`
+   - ✅ `instagram_content_publish`
+   - ✅ `pages_read_engagement`
+   - ✅ `pages_show_list`
+5. Click **"Generate Access Token"**
+6. Copy this token — you'll need it in n8n
 
-## Step 1.6 — Get Your Instagram Business Account ID
-Run this in browser (replace YOUR_PAGE_ID and YOUR_TOKEN):
+## 6. Get Your Instagram Business Account ID
+Run this in your browser (replace YOUR_TOKEN):
 ```
-https://graph.facebook.com/v18.0/YOUR_PAGE_ID?fields=instagram_business_account&access_token=YOUR_TOKEN
+https://graph.facebook.com/v18.0/me/accounts?access_token=YOUR_TOKEN
 ```
-Copy the `id` value → save as `IG_USER_ID`
-
-## Step 1.7 — Get Long-Lived Token (stays valid 60 days)
+Find your page ID, then:
 ```
-https://graph.facebook.com/v18.0/oauth/access_token?
-  grant_type=fb_exchange_token&
-  client_id=YOUR_APP_ID&
-  client_secret=YOUR_APP_SECRET&
-  fb_exchange_token=YOUR_SHORT_TOKEN
+https://graph.facebook.com/v18.0/PAGE_ID?fields=instagram_business_account&access_token=YOUR_TOKEN
 ```
+Copy the `id` value — this is your **Instagram Account ID**
 
----
+## ✅ You now have:
+- Facebook Access Token
+- Instagram Account ID
 
-## ✅ You should now have:
-- `FB_PAGE_ID` — your Facebook Page ID
-- `FB_PAGE_ACCESS_TOKEN` — long-lived access token
-- `IG_USER_ID` — Instagram Business Account ID
-
-→ Proceed to `02_google_sheet.md`
+→ Go to **Step 2: Instagram Setup**
