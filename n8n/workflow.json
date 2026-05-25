@@ -1,0 +1,130 @@
+{
+  "name": "Instagram Auto Poster",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 12 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Schedule (9AM, 1PM, 6PM IST)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        240,
+        300
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "command": "cd /home/node/instagram && python3 python/main.py"
+      },
+      "name": "Run Python Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "position": [
+        480,
+        300
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.exitCode}}",
+              "operation": "equal",
+              "value2": "0"
+            }
+          ]
+        }
+      },
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        720,
+        300
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "message": "\u2705 Instagram Auto Poster ran successfully!\nOutput: ={{$json.stdout}}"
+      },
+      "name": "Log Success",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        960,
+        200
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "message": "\u274c Instagram Auto Poster failed!\nError: ={{$json.stderr}}"
+      },
+      "name": "Log Error",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        960,
+        400
+      ],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Schedule (9AM, 1PM, 6PM IST)": {
+      "main": [
+        [
+          {
+            "node": "Run Python Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Python Script": {
+      "main": [
+        [
+          {
+            "node": "Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Success": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
