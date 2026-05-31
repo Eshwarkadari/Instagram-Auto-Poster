@@ -1,173 +1,187 @@
-"""
-poster.py — Run automation manually (test mode)
-Author: Kadari Eshwar | B.Tech ECE, JNTU Hyderabad
+import os
+import requests
+import base64
+import json
+import time
 
-Usage:
-  python poster.py          # dry run (no actual posting)
-  python poster.py --live   # real posting (needs credentials)
-"""
-import os, sys, base64, json
-import urllib.request, urllib.parse
-from datetime import datetime
-from pinterest_downloader import download
-from caption_generator import generate
+INSTAGRAM_ACCESS_TOKEN = os.environ['INSTAGRAM_ACCESS_TOKEN']
+INSTAGRAM_ACCOUNT_ID = os.environ['INSTAGRAM_ACCOUNT_ID']
+GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
+GITHUB_REPO = os.environ['GITHUB_REPO']
 
-# ── Credentials (set as environment variables) ─────────────────────────────
-GITHUB_TOKEN          = os.getenv("GITHUB_TOKEN", "")
-GITHUB_REPO           = os.getenv("GITHUB_REPO", "Eshwarkadari/Instagram-Auto-Poster")
-INSTAGRAM_ACCOUNT_ID  = os.getenv("INSTAGRAM_ACCOUNT_ID", "")
-FACEBOOK_ACCESS_TOKEN = os.getenv("FACEBOOK_ACCESS_TOKEN", "")
-POSTS_PER_RUN         = 3
-LIVE_MODE             = "--live" in sys.argv
-
-GH_HEADERS = {
-    "Authorization": f"token {GITHUB_TOKEN}",
-    "Accept": "application/vnd.github.v3+json"
+HEADERS_GH = {
+    "Authorization": f"Bearer {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github+json"
 }
 
-def gh_get_file(path):
-    """Read file from GitHub repo."""
+CAPTIONS = [
+    "✨ Beautiful moments captured. 📸\n\n#photography #beautiful #amazing #aesthetic #instagood #viral #trending",
+    "🌟 Life is beautiful. Enjoy every moment. 💫\n\n#life #beautiful #moments #photography #instagood #explore",
+    "📸 A picture says a thousand words. 🎨\n\n#photography #art #beautiful #creative #aesthetic #photooftheday",
+    "💫 Creating memories one photo at a time. ✨\n\n#photography #memories #beautiful #instagood #reels #viral",
+    "🌈 Colors of life. 🎨\n\n#colorful #beautiful #photography #aesthetic #instagram #viral #trending",
+    "🔥 Absolutely stunning! 😍\n\n#stunning #beautiful #photography #amazing #viral #trending #reels",
+    "💎 Pure perfection. ✨\n\n#perfect #beautiful #photography #aesthetic #instagood #amazing",
+    "🌸 Beauty is everywhere. 🌺\n\n#beauty #beautiful #nature #photography #aesthetic #instagood",
+]
+
+def get_file(path):
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
-    req = urllib.request.Request(url, headers=GH_HEADERS)
-    with urllib.request.urlopen(req) as r:
-        data    = json.load(r)
-        content = base64.b64decode(data["content"]).decode()
-        return content, data["sha"]
+    r = requests.get(url, headers=HEADERS_GH)
+    r.raise_for_status()
+    data = r.json()
+    content = base64.b64decode(data['content']).decode('utf-8')
+    return content, data['sha']
 
-def gh_update_file(path, content, sha, msg):
-    """Update file in GitHub repo."""
-    url     = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{urllib.parse.quote(path)}"
-    encoded = base64.b64encode(content.encode()).decode()
-    payload = {"message": msg, "content": encoded, "sha": sha}
-    req = urllib.request.Request(
-        url, data=json.dumps(payload).encode(),
-        headers={**GH_HEADERS, "Content-Type": "application/json"},
-        method="PUT"
-    )
-    with urllib.request.urlopen(req) as r:
-        return json.load(r)
+def update_file(path, content, sha, message):
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
+    encoded = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+    payload = {"message": message, "content": encoded, "sha": sha}
+    r = requests.put(url, headers=HEADERS_GH, json=payload)
+    r.raise_for_status()
+    print(f"✅ Updated {path}")
 
-def read_links():
-    """Read pending links from links.txt."""
-    content, sha = gh_get_file("links.txt")
-    links = [
-        line.strip() for line in content.splitlines()
-        if line.strip() and not line.startswith("#") and "pin" in line.lower()
-    ]
-    return links, content, sha
+def get_pinterest_image(pin_url):
+    """Get image URL from Pinterest pin"""
+    try:
+        # Try oEmbed first
+        oembed_url = f"https://www.pinterest.com/oembed.json?url={pin_url}"
+        r = requests.get(oembed_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code == 200:
+            data = r.json()
+            img = data.get('thumbnail_url', '')
+            # Upgrade resolution
+            for low, high in [('236x', '736x'), ('474x', '736x'), ('170x', '736x')]:
+                img = img.replace(low, high)
+            if img:
+                return img
+    except Exception as e:
+        print(f"oEmbed failed: {e}")
 
-def post_to_instagram(media_url, caption, media_type="image"):
-    """Post to Instagram via Facebook Graph API."""
-    base = f"https://graph.facebook.com/v18.0/{INSTAGRAM_ACCOUNT_ID}"
+    try:
+        # Fallback: scrape page
+        r = requests.get(pin_url, timeout=15, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+        html = r.text
+        import re
+        patterns = [
+            r'"contentUrl":"(https://i\.pinimg\.com/originals/[^"]+)"',
+            r'"url":"(https://i\.pinimg\.com/originals/[^"]+)"',
+            r'(https://i\.pinimg\.com/736x/[^\s"]+\.(?:jpg|jpeg|png))',
+            r'(https://i\.pinimg\.com/originals/[^\s"]+\.(?:jpg|jpeg|png))',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, html)
+            if match:
+                return match.group(1)
+    except Exception as e:
+        print(f"Scrape failed: {e}")
 
-    # Step 1: Create container
-    params = {
-        "caption":      caption,
-        "access_token": FACEBOOK_ACCESS_TOKEN,
+    return None
+
+def create_instagram_container(image_url, caption):
+    url = f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media"
+    payload = {
+        "image_url": image_url,
+        "caption": caption,
+        "access_token": INSTAGRAM_ACCESS_TOKEN
     }
-    if media_type == "video":
-        params["video_url"]  = media_url
-        params["media_type"] = "REELS"
-    else:
-        params["image_url"] = media_url
+    r = requests.post(url, data=payload)
+    r.raise_for_status()
+    return r.json()['id']
 
-    data = urllib.parse.urlencode(params).encode()
-    req  = urllib.request.Request(f"{base}/media", data=data, method="POST")
-    with urllib.request.urlopen(req) as r:
-        container = json.load(r)
+def publish_instagram(container_id):
+    url = f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media_publish"
+    payload = {
+        "creation_id": container_id,
+        "access_token": INSTAGRAM_ACCESS_TOKEN
+    }
+    r = requests.post(url, data=payload)
+    r.raise_for_status()
+    return r.json()['id']
 
-    container_id = container.get("id")
-    if not container_id:
-        print(f"❌ Container error: {container}")
-        return None
+def main():
+    print("🚀 Starting Instagram Auto Poster...")
 
-    # Step 2: Publish
-    import time; time.sleep(5)
-    pub_params = urllib.parse.urlencode({
-        "creation_id":  container_id,
-        "access_token": FACEBOOK_ACCESS_TOKEN
-    }).encode()
-    req = urllib.request.Request(f"{base}/media_publish", data=pub_params, method="POST")
-    with urllib.request.urlopen(req) as r:
-        result = json.load(r)
-
-    return result.get("id")
-
-def run():
-    print("\n🤖 Instagram Auto Poster")
-    print("=" * 40)
-    print(f"Mode: {'🔴 LIVE' if LIVE_MODE else '🟡 DRY RUN (use --live for real posting)'}")
-
-    # Read links
-    links, original_content, links_sha = read_links()
-    print(f"📋 Found {len(links)} pending links")
+    # Read links.txt
+    links_content, links_sha = get_file("links.txt")
+    links = [l.strip() for l in links_content.split('\n')
+             if l.strip() and not l.strip().startswith('#') and 'pin' in l.lower()]
 
     if not links:
-        print("❌ No links in links.txt! Add Pinterest links and try again.")
+        print("❌ No links found in links.txt! Add Pinterest links to continue.")
         return
 
-    to_post = links[:POSTS_PER_RUN]
-    posted  = []
+    print(f"📋 Found {len(links)} links. Processing first 3...")
 
-    for i, url in enumerate(to_post, 1):
-        print(f"\n[{i}/{len(to_post)}] Processing: {url[:55]}...")
+    # Read posted.txt
+    try:
+        posted_content, posted_sha = get_file("posted.txt")
+    except:
+        posted_content, posted_sha = "", None
 
-        # Download media
-        path, media_type = download(url)
-        if not path:
-            print(f"  ⚠️  Could not download — skipping")
-            continue
+    to_post = links[:3]
+    remaining = links[3:]
+    posted_this_run = []
+    import random
 
-        # Generate caption
-        caption = generate()
-        print(f"  📝 Caption ready ({len(caption)} chars)")
-        print(f"  🖼️  Media: {path} ({media_type})")
-
-        if LIVE_MODE:
-            # NOTE: Instagram API needs a PUBLIC URL for the image
-            # For local testing, you need to host the image first
-            # n8n handles this automatically
-            print(f"  🚀 Posting to Instagram...")
-            # post_id = post_to_instagram(public_url, caption, media_type)
-            print(f"  ✅ Posted!")
-        else:
-            print(f"  ✅ Dry run OK — would post this!")
-
-        posted.append(url)
-
-    # Update links.txt — remove posted links
-    if posted:
-        new_lines = []
-        for line in original_content.splitlines():
-            stripped = line.strip()
-            if stripped in posted:
-                continue  # remove posted link
-            new_lines.append(line)
-        new_content = "\n".join(new_lines) + "\n"
-
-        # Update posted.txt
+    for pin_url in to_post:
+        print(f"\n📌 Processing: {pin_url}")
         try:
-            posted_content, posted_sha = gh_get_file("posted.txt")
-        except:
-            posted_content, posted_sha = "", None
+            # Get image
+            image_url = get_pinterest_image(pin_url)
+            if not image_url:
+                print(f"⚠️ Could not extract image from {pin_url}, skipping...")
+                remaining.insert(0, pin_url)
+                continue
 
-        now = datetime.now().strftime("%Y-%m-%d %H:%M")
-        new_posted = posted_content + "\n".join(
-            [f"{now} | {url}" for url in posted]
-        ) + "\n"
+            print(f"🖼️ Image URL: {image_url[:60]}...")
 
-        if GITHUB_TOKEN:
-            gh_update_file("links.txt", new_content, links_sha,
-                          f"Auto: Remove {len(posted)} posted links")
-            if posted_sha:
-                gh_update_file("posted.txt", new_posted, posted_sha,
-                              f"Auto: Add {len(posted)} posted links")
-            print(f"\n✅ Updated links.txt and posted.txt in GitHub")
+            # Generate caption
+            caption = random.choice(CAPTIONS)
+
+            # Create container
+            print("📤 Creating Instagram container...")
+            container_id = create_instagram_container(image_url, caption)
+            print(f"✅ Container created: {container_id}")
+
+            # Wait for processing
+            time.sleep(15)
+
+            # Publish
+            print("🚀 Publishing to Instagram...")
+            post_id = publish_instagram(container_id)
+            print(f"✅ Posted successfully! Post ID: {post_id}")
+
+            posted_this_run.append(pin_url)
+            time.sleep(5)
+
+        except Exception as e:
+            print(f"❌ Error posting {pin_url}: {e}")
+            remaining.insert(0, pin_url)
+
+    # Update links.txt - remove posted links
+    new_links = "# Add your Pinterest links below (one per line)\n# Lines starting with # are ignored\n\n"
+    new_links += '\n'.join(remaining) + '\n'
+    update_file("links.txt", new_links, links_sha, f"Auto: removed {len(posted_this_run)} posted links")
+
+    # Update posted.txt - add posted links
+    if posted_this_run:
+        new_posted = posted_content.strip() + '\n' + '\n'.join(posted_this_run) + '\n'
+        if posted_sha:
+            update_file("posted.txt", new_posted, posted_sha, f"Auto: added {len(posted_this_run)} posted links")
         else:
-            print(f"\n⚠️  Set GITHUB_TOKEN env var to auto-update files")
+            # Create posted.txt if doesn't exist
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/posted.txt"
+            encoded = base64.b64encode(new_posted.encode()).decode()
+            requests.put(url, headers=HEADERS_GH, json={
+                "message": "Auto: created posted.txt",
+                "content": encoded
+            })
+            print("✅ Created posted.txt")
 
-    print(f"\n🎉 Done! {len(posted)}/{len(to_post)} posts processed")
-    print("=" * 40)
+    print(f"\n🎉 Done! Posted {len(posted_this_run)}/3 images to Instagram.")
 
 if __name__ == "__main__":
-    run()
+    main()
