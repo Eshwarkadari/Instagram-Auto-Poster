@@ -2,8 +2,8 @@
 # Lines starting with # are ignored
 # Automation picks 3 links daily and moves them to posted.txt
 
-https://pin.it/example1
-https://pin.it/example2
-https://pin.it/example3
-https://pin.it/example4
-https://pin.it/example5
+https://in.pinterest.com/pin/2744449770020988/
+https://pin.it/7FImWydJv
+https://pin.it/6N8bje6hC
+https://pin.it/6La2G5Y4H
+https://pin.it/5cqhUP9MS
