@@ -1,9 +1,8 @@
 # Add your Pinterest links below (one per line)
 # Lines starting with # are ignored
-# Automation picks 3 links daily and moves them to posted.txt
 
-https://in.pinterest.com/pin/2744449770020988/
-https://pin.it/7FImWydJv
 https://pin.it/6N8bje6hC
+https://pin.it/7FImWydJv
+https://in.pinterest.com/pin/2744449770020988/
 https://pin.it/6La2G5Y4H
 https://pin.it/5cqhUP9MS
