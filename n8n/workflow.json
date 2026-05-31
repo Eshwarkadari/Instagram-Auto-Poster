@@ -1,300 +1,336 @@
 {
-  "name": "Instagram Auto Poster \u2014 GitHub Links",
+  "name": "Instagram Auto Poster - Pinterest → GitHub → Instagram",
   "nodes": [
     {
       "parameters": {
         "rule": {
           "interval": [
-            {
-              "field": "hours",
-              "hoursInterval": 8
-            }
+            { "field": "hours", "hoursInterval": 8 }
           ]
         }
       },
-      "name": "Every 8 Hours",
+      "id": "node-schedule",
+      "name": "Schedule Trigger (Every 8 Hours)",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "position": [
-        200,
-        300
-      ],
-      "id": "n1"
+      "typeVersion": 1.1,
+      "position": [240, 300]
     },
     {
       "parameters": {
-        "url": "=https://api.github.com/repos/{{$env.GITHUB_REPO}}/contents/links.txt",
+        "method": "GET",
+        "url": "https://api.github.com/repos/Eshwarkadari/Instagram-Auto-Poster/contents/links.txt",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{$env.GITHUB_TOKEN}}"
+              "value": "Bearer ={{ $env.GITHUB_TOKEN }}"
             },
             {
               "name": "Accept",
-              "value": "application/vnd.github.v3+json"
+              "value": "application/vnd.github+json"
             }
           ]
-        }
+        },
+        "options": {}
       },
-      "name": "Read links.txt from GitHub",
+      "id": "node-get-links",
+      "name": "Get links.txt from GitHub",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [
-        420,
-        300
-      ],
-      "id": "n2"
+      "typeVersion": 4.2,
+      "position": [460, 300]
     },
     {
       "parameters": {
-        "jsCode": "\n// Decode base64 content from GitHub API\nconst raw  = $input.first().json.content;\nconst sha  = $input.first().json.sha;\nconst text = Buffer.from(raw, 'base64').toString('utf-8');\n\n// Parse links (skip comments and empty lines)\nconst links = text.split('\\n')\n  .map(l => l.trim())\n  .filter(l => l && !l.startsWith('#') && l.includes('pin'));\n\n// Take first 3\nconst toPost = links.slice(0, 3);\nconst remaining = links.slice(3);\n\nreturn toPost.map(url => ({\n  json: { url, sha, allLinks: links, remaining }\n}));\n"
+        "jsCode": "const base64Content = $input.first().json.content;\nconst sha = $input.first().json.sha;\nconst decoded = Buffer.from(base64Content, 'base64').toString('utf-8');\n\nconst allLinks = decoded.split('\\n').map(l => l.trim()).filter(l => l.length > 0);\n\nif (allLinks.length === 0) {\n  throw new Error('No links found in links.txt - please add Pinterest links!');\n}\n\nconst linksToPost = allLinks.slice(0, 3);\nconst remainingLinks = allLinks.slice(3);\n\nreturn [{\n  json: {\n    linksToPost,\n    remainingLinks,\n    sha,\n    totalLinks: allLinks.length\n  }\n}];"
       },
+      "id": "node-parse-links",
       "name": "Parse & Pick 3 Links",
       "type": "n8n-nodes-base.code",
-      "position": [
-        640,
-        300
-      ],
-      "id": "n3"
+      "typeVersion": 2,
+      "position": [680, 300]
     },
     {
       "parameters": {
-        "url": "={{$json.url}}",
-        "options": {
-          "redirect": {
-            "redirect": {
-              "followRedirects": true,
-              "maxRedirects": 5
-            }
-          },
-          "response": {
-            "response": {
-              "responseFormat": "text"
-            }
-          }
-        }
+        "fieldToSplitOut": "linksToPost",
+        "options": {}
       },
-      "name": "Fetch Pinterest Page",
-      "type": "n8n-nodes-base.httpRequest",
-      "position": [
-        860,
-        300
-      ],
-      "id": "n4"
+      "id": "node-split",
+      "name": "Split Into Individual Links",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [900, 300]
     },
     {
       "parameters": {
-        "jsCode": "\nconst html = $input.first().json.data || '';\nconst pinterestUrl = $node['Parse & Pick 3 Links'].json.url;\n\n// Extract image URL\nconst patterns = [\n  /\"contentUrl\":\"(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"]+)\"/,\n  /\"url\":\"(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"]+)\"/,\n  /(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"\\s]+\\.(?:jpg|jpeg|png))/,\n  /(https:\\/\\/i\\.pinimg\\.com\\/736x\\/[^\"\\s]+\\.(?:jpg|jpeg|png))/,\n];\n\nlet mediaUrl = null;\nlet mediaType = 'image';\n\n// Check video first\nconst vm = html.match(/\"contentUrl\":\"(https:\\/\\/v[^\"]+\\.mp4[^\"]*)\"/);\nif (vm) { mediaUrl = vm[1]; mediaType = 'video'; }\n\nif (!mediaUrl) {\n  for (const p of patterns) {\n    const m = html.match(p);\n    if (m) { mediaUrl = m[1]; break; }\n  }\n}\n\n// Random caption\nconst captions = [\n  \"\u2728 Beautiful moments captured. \ud83d\udcf8\\n\\n#photography #beautiful #amazing #aesthetic #instagood #viral #trending\",\n  \"\ud83c\udf1f Life is beautiful. Enjoy every moment. \ud83d\udcab\\n\\n#life #beautiful #moments #photography #instagood #explore\",\n  \"\ud83d\udcf8 A picture says a thousand words. \ud83c\udfa8\\n\\n#photography #art #beautiful #creative #aesthetic #photooftheday\",\n  \"\ud83d\udcab Creating memories one photo at a time. \u2728\\n\\n#photography #memories #beautiful #instagood #reels #viral\",\n  \"\ud83c\udf08 Colors of life. \ud83c\udfa8\\n\\n#colorful #beautiful #photography #aesthetic #instagram #viral #trending\",\n  \"\ud83d\udd25 Absolutely stunning! \ud83d\ude0d\\n\\n#stunning #beautiful #photography #amazing #viral #trending #reels\",\n  \"\ud83d\udc8e Pure perfection. \u2728\\n\\n#perfect #beautiful #photography #aesthetic #instagood #amazing\",\n  \"\ud83c\udf38 Beauty is everywhere. \ud83c\udf3a\\n\\n#beauty #beautiful #nature #photography #aesthetic #instagood\",\n];\nconst caption = captions[Math.floor(Math.random() * captions.length)];\n\nreturn [{ json: {\n  ...($node['Parse & Pick 3 Links'].json),\n  media_url: mediaUrl,\n  media_type: mediaType,\n  caption: caption,\n}}];\n"
+        "jsCode": "const pinUrl = $input.first().json.linksToPost;\nconst oembedUrl = `https://www.pinterest.com/oembed.json?url=${encodeURIComponent(pinUrl)}`;\n\nreturn [{\n  json: {\n    pinUrl,\n    oembedUrl\n  }\n}];"
       },
-      "name": "Extract Media + Caption",
+      "id": "node-prep-pinterest",
+      "name": "Prepare Pinterest URL",
       "type": "n8n-nodes-base.code",
-      "position": [
-        1080,
-        300
-      ],
-      "id": "n5"
+      "typeVersion": 2,
+      "position": [1120, 300]
     },
     {
       "parameters": {
-        "conditions": {
-          "string": [
-            {
-              "value1": "={{$json.media_url}}",
-              "operation": "isNotEmpty"
-            }
-          ]
-        }
+        "method": "GET",
+        "url": "={{ $json.oembedUrl }}",
+        "options": {}
       },
-      "name": "Skip if No Media",
-      "type": "n8n-nodes-base.filter",
-      "position": [
-        1300,
-        300
-      ],
-      "id": "n6"
+      "id": "node-pinterest-oembed",
+      "name": "Fetch Pinterest oEmbed Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300]
     },
     {
       "parameters": {
-        "url": "=https://graph.facebook.com/v18.0/{{$env.INSTAGRAM_ACCOUNT_ID}}/media",
+        "jsCode": "const data = $input.first().json;\nconst pinUrl = $('Prepare Pinterest URL').first().json.pinUrl;\n\nlet imageUrl = data.thumbnail_url || data.url || '';\nconst title = data.title || 'Beautiful inspiration';\nconst authorName = data.author_name || '';\n\nif (imageUrl.includes('236x')) {\n  imageUrl = imageUrl.replace('236x', '736x');\n} else if (imageUrl.includes('474x')) {\n  imageUrl = imageUrl.replace('474x', '736x');\n}\n\nif (!imageUrl) {\n  throw new Error('Could not extract image from Pinterest: ' + pinUrl);\n}\n\nreturn [{\n  json: {\n    imageUrl,\n    title,\n    authorName,\n    pinUrl\n  }\n}];"
+      },
+      "id": "node-extract-image",
+      "name": "Extract Image URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const title = $input.first().json.title || 'Inspiration';\n\nconst templates = [\n  `✨ ${title}\\n\\nDouble tap if this inspires you! 💫\\n\\n#inspiration #motivation #lifestyle #aesthetic #vibes #photooftheday #instagood #instagram #beautiful #trending`,\n  `🌟 ${title}\\n\\nSave this for later! 📌\\n\\n#savethis #daily #mindset #goals #positivity #lifestyle #aesthetic #love #instadaily #viral`,\n  `💡 ${title}\\n\\nTag someone who needs to see this! 👇\\n\\n#tagsomeone #trending #explore #instagram #motivation #beautiful #art #creative #daily #inspo`,\n  `🔥 ${title}\\n\\nAgree? Drop a ❤️ below!\\n\\n#trending #explore #reels #instagram #viral #aesthetic #lifestyle #goals #amazing #photooftheday`,\n  `🎯 ${title}\\n\\nFollow for more daily inspiration! ✨\\n\\n#follow #daily #inspiration #lifestyle #mood #aesthetic #beautiful #instagood #love #trending`\n];\n\nconst caption = templates[Math.floor(Math.random() * templates.length)];\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    caption\n  }\n}];"
+      },
+      "id": "node-generate-caption",
+      "name": "Generate Caption",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/1108019899065402/media",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "image_url",
-              "value": "={{$json.media_url}}"
+              "value": "={{ $json.imageUrl }}"
             },
             {
               "name": "caption",
-              "value": "={{$json.caption}}"
+              "value": "={{ $json.caption }}"
             },
             {
               "name": "access_token",
-              "value": "={{$env.FACEBOOK_ACCESS_TOKEN}}"
+              "value": "={{ $env.INSTAGRAM_ACCESS_TOKEN }}"
             }
           ]
-        }
+        },
+        "options": {}
       },
-      "name": "Create Instagram Container",
+      "id": "node-create-container",
+      "name": "Create Instagram Media Container",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [
-        1520,
-        300
-      ],
-      "id": "n7"
+      "typeVersion": 4.2,
+      "position": [2000, 300]
     },
     {
       "parameters": {
-        "amount": 8,
+        "amount": 15,
         "unit": "seconds"
       },
-      "name": "Wait 8s",
+      "id": "node-wait",
+      "name": "Wait 15 Seconds",
       "type": "n8n-nodes-base.wait",
-      "position": [
-        1740,
-        300
-      ],
-      "id": "n8"
+      "typeVersion": 1.1,
+      "position": [2220, 300],
+      "webhookId": "wait-instagram-publish"
     },
     {
       "parameters": {
-        "url": "=https://graph.facebook.com/v18.0/{{$env.INSTAGRAM_ACCOUNT_ID}}/media_publish",
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/1108019899065402/media_publish",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "creation_id",
-              "value": "={{$json.id}}"
+              "value": "={{ $('Create Instagram Media Container').first().json.id }}"
             },
             {
               "name": "access_token",
-              "value": "={{$env.FACEBOOK_ACCESS_TOKEN}}"
+              "value": "={{ $env.INSTAGRAM_ACCESS_TOKEN }}"
             }
           ]
-        }
+        },
+        "options": {}
       },
+      "id": "node-publish",
       "name": "Publish to Instagram",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [
-        1960,
-        300
-      ],
-      "id": "n9"
+      "typeVersion": 4.2,
+      "position": [2440, 300]
     },
     {
       "parameters": {
-        "jsCode": "\n// Remove posted URL from links and update GitHub\nconst postedUrl   = $node['Parse & Pick 3 Links'].json.url;\nconst sha         = $node['Parse & Pick 3 Links'].json.sha;\nconst allLinks    = $node['Parse & Pick 3 Links'].json.allLinks;\nconst postId      = $input.first().json.id;\nconst repo        = $env.GITHUB_REPO;\nconst token       = $env.GITHUB_TOKEN;\n\n// Remove posted link\nconst remaining = allLinks.filter(l => l !== postedUrl);\nconst newContent = \"# Add your Pinterest links below (one per line)\\n# Lines starting with # are ignored\\n\\n\"\n  + remaining.join('\\n') + '\\n';\n\nconst encoded = Buffer.from(newContent).toString('base64');\n\n// Update links.txt\nawait $helpers.httpRequest({\n  method: 'PUT',\n  url: `https://api.github.com/repos/${repo}/contents/links.txt`,\n  headers: {\n    'Authorization': `Bearer ${token}`,\n    'Content-Type': 'application/json',\n  },\n  body: JSON.stringify({\n    message: `Auto: Posted ${postedUrl.slice(-20)}`,\n    content: encoded,\n    sha: sha,\n  }),\n});\n\nreturn [{ json: { success: true, post_id: postId, posted_url: postedUrl }}];\n"
+        "jsCode": "const postedLink = $('Prepare Pinterest URL').first().json.pinUrl;\nreturn [{ json: { postedLink } }];"
       },
-      "name": "Remove from links.txt",
+      "id": "node-collect-posted",
+      "name": "Collect Posted Link",
       "type": "n8n-nodes-base.code",
-      "position": [
-        2180,
-        300
-      ],
-      "id": "n10"
+      "typeVersion": 2,
+      "position": [2660, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.github.com/repos/Eshwarkadari/Instagram-Auto-Poster/contents/posted.txt",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ={{ $env.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-get-posted",
+      "name": "Get posted.txt from GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const existingBase64 = $input.first().json.content || '';\nconst postedSha = $input.first().json.sha || '';\nconst existingContent = existingBase64 ? Buffer.from(existingBase64, 'base64').toString('utf-8') : '';\n\nconst newPostedLinks = $('Collect Posted Link').all().map(item => item.json.postedLink);\nconst allPosted = (existingContent.trim() + '\\n' + newPostedLinks.join('\\n')).trim();\nconst newPostedBase64 = Buffer.from(allPosted).toString('base64');\n\nconst remainingLinks = $('Parse & Pick 3 Links').first().json.remainingLinks;\nconst newLinksContent = remainingLinks.join('\\n');\nconst newLinksBase64 = Buffer.from(newLinksContent).toString('base64');\nconst linksSha = $('Parse & Pick 3 Links').first().json.sha;\n\nreturn [{\n  json: {\n    newPostedBase64,\n    postedSha,\n    newLinksBase64,\n    linksSha\n  }\n}];"
+      },
+      "id": "node-prep-update",
+      "name": "Prepare GitHub Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3100, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "https://api.github.com/repos/Eshwarkadari/Instagram-Auto-Poster/contents/posted.txt",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ={{ $env.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "message", "value": "Auto: moved posted links" },
+            { "name": "content", "value": "={{ $json.newPostedBase64 }}" },
+            { "name": "sha", "value": "={{ $json.postedSha }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-update-posted",
+      "name": "Update posted.txt on GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3320, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "https://api.github.com/repos/Eshwarkadari/Instagram-Auto-Poster/contents/links.txt",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ={{ $env.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "message", "value": "Auto: removed posted links" },
+            { "name": "content", "value": "={{ $('Prepare GitHub Updates').first().json.newLinksBase64 }}" },
+            { "name": "sha", "value": "={{ $('Prepare GitHub Updates').first().json.linksSha }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-update-links",
+      "name": "Update links.txt on GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3540, 300]
     }
   ],
   "connections": {
-    "Every 8 Hours": {
-      "main": [
-        [
-          {
-            "node": "Read links.txt from GitHub",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Schedule Trigger (Every 8 Hours)": {
+      "main": [[{ "node": "Get links.txt from GitHub", "type": "main", "index": 0 }]]
     },
-    "Read links.txt from GitHub": {
-      "main": [
-        [
-          {
-            "node": "Parse & Pick 3 Links",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Get links.txt from GitHub": {
+      "main": [[{ "node": "Parse & Pick 3 Links", "type": "main", "index": 0 }]]
     },
     "Parse & Pick 3 Links": {
-      "main": [
-        [
-          {
-            "node": "Fetch Pinterest Page",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Split Into Individual Links", "type": "main", "index": 0 }]]
     },
-    "Fetch Pinterest Page": {
-      "main": [
-        [
-          {
-            "node": "Extract Media + Caption",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Split Into Individual Links": {
+      "main": [[{ "node": "Prepare Pinterest URL", "type": "main", "index": 0 }]]
     },
-    "Extract Media + Caption": {
-      "main": [
-        [
-          {
-            "node": "Skip if No Media",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Prepare Pinterest URL": {
+      "main": [[{ "node": "Fetch Pinterest oEmbed Data", "type": "main", "index": 0 }]]
     },
-    "Skip if No Media": {
-      "main": [
-        [
-          {
-            "node": "Create Instagram Container",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Fetch Pinterest oEmbed Data": {
+      "main": [[{ "node": "Extract Image URL", "type": "main", "index": 0 }]]
     },
-    "Create Instagram Container": {
-      "main": [
-        [
-          {
-            "node": "Wait 8s",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Extract Image URL": {
+      "main": [[{ "node": "Generate Caption", "type": "main", "index": 0 }]]
     },
-    "Wait 8s": {
-      "main": [
-        [
-          {
-            "node": "Publish to Instagram",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Generate Caption": {
+      "main": [[{ "node": "Create Instagram Media Container", "type": "main", "index": 0 }]]
+    },
+    "Create Instagram Media Container": {
+      "main": [[{ "node": "Wait 15 Seconds", "type": "main", "index": 0 }]]
+    },
+    "Wait 15 Seconds": {
+      "main": [[{ "node": "Publish to Instagram", "type": "main", "index": 0 }]]
     },
     "Publish to Instagram": {
-      "main": [
-        [
-          {
-            "node": "Remove from links.txt",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Collect Posted Link", "type": "main", "index": 0 }]]
+    },
+    "Collect Posted Link": {
+      "main": [[{ "node": "Get posted.txt from GitHub", "type": "main", "index": 0 }]]
+    },
+    "Get posted.txt from GitHub": {
+      "main": [[{ "node": "Prepare GitHub Updates", "type": "main", "index": 0 }]]
+    },
+    "Prepare GitHub Updates": {
+      "main": [[{ "node": "Update posted.txt on GitHub", "type": "main", "index": 0 }]]
+    },
+    "Update posted.txt on GitHub": {
+      "main": [[{ "node": "Update links.txt on GitHub", "type": "main", "index": 0 }]]
     }
   },
   "settings": {
     "executionOrder": "v1"
-  }
+  },
+  "tags": [],
+  "triggerCount": 1
 }
