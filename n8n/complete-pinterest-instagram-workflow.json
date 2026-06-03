@@ -1,0 +1,713 @@
+{
+  "name": "Pinterest to Instagram Auto Poster (3x Daily)",
+  "nodes": [
+    {
+      "parameters": {
+        "trigger": "every",
+        "unit": "hours",
+        "value": 8
+      },
+      "id": "5a7c1a2b-3d4e-5f6a-7b8c-9d0e1f2a3b4c",
+      "name": "Trigger - Schedule Daily Posts",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "credentialType": "googleSheetsOAuth2",
+        "documentId": "15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960",
+        "sheetName": "Sheet1",
+        "range": "A:F"
+      },
+      "id": "6b8d2c3e-4f5a-6b7c-8d9e-0f1a2b3c4d5e",
+      "name": "Read Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse sheet data and find first PENDING URL\nconst rows = $input.all();\nconst headers = rows[0].json;\n\n// Find the index of each column\nconst statusIndex = headers.indexOf('Status');\nconst urlIndex = headers.indexOf('Pinterest_URL');\nconst idIndex = headers.indexOf('ID');\nconst addedDateIndex = headers.indexOf('Added_Date');\nconst postedDateIndex = headers.indexOf('Posted_Date');\nconst instagramIdIndex = headers.indexOf('Instagram_Post_ID');\n\nlet pendingUrl = null;\nlet rowIndex = null;\nlet rowData = null;\n\n// Skip header row and find first PENDING\nfor (let i = 1; i < rows.length; i++) {\n  const row = rows[i].json;\n  if (row.Status && row.Status.trim().toUpperCase() === 'PENDING' && row.Pinterest_URL && row.Pinterest_URL.trim()) {\n    pendingUrl = row.Pinterest_URL.trim();\n    rowIndex = i + 1; // Google Sheets uses 1-based indexing\n    rowData = row;\n    break;\n  }\n}\n\nreturn {\n  hasPending: pendingUrl !== null,\n  pendingUrl: pendingUrl,\n  rowIndex: rowIndex,\n  rowData: rowData,\n  message: pendingUrl ? `Found pending URL: ${pendingUrl}` : 'No pending URLs found'\n};"
+      },
+      "id": "7c9e3d4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f",
+      "name": "Check for Pending URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $node[\"Check for Pending URLs\"].json.hasPending }}",
+              "operation": "equals",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "8d0f4e5a-6b7c-8d9e-0f1a-2b3c4d5e6f7a",
+      "name": "Has Pending URL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const pinUrl = $node[\"Check for Pending URLs\"].json.pendingUrl;\n\n// Extract image from Pinterest using oEmbed and scraping\nconst getImageUrl = async () => {\n  // Method 1: Try oEmbed first\n  try {\n    const oembed = await fetch(\n      `https://www.pinterest.com/oembed.json?url=${encodeURIComponent(pinUrl)}`,\n      {\n        headers: {\n          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'\n        }\n      }\n    );\n    if (oembed.ok) {\n      const data = await oembed.json();\n      let imageUrl = data.thumbnail_url;\n      // Upgrade to original quality\n      imageUrl = imageUrl.replace(/\\/236x\\//g, '/originals/')\n                         .replace(/\\/474x\\//g, '/originals/')\n                         .replace(/\\/736x\\//g, '/originals/');\n      return imageUrl;\n    }\n  } catch (e) {\n    console.log('oEmbed failed, trying scrape...');\n  }\n  \n  // Method 2: Scrape the page\n  try {\n    const response = await fetch(pinUrl, {\n      headers: {\n        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'\n      }\n    });\n    \n    if (response.ok) {\n      const html = await response.text();\n      \n      // Try multiple patterns\n      const patterns = [\n        /\"contentUrl\":\"(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"]+)\"/,\n        /\"url\":\"(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\"]+)\"/,\n        /(https:\\/\\/i\\.pinimg\\.com\\/originals\\/[^\\s\"']+\\.(?:jpg|jpeg|png|webp))/,\n        /(https:\\/\\/i\\.pinimg\\.com\\/736x\\/[^\\s\"']+\\.(?:jpg|jpeg|png|webp))/\n      ];\n      \n      for (const pattern of patterns) {\n        const match = html.match(pattern);\n        if (match) {\n          return match[1];\n        }\n      }\n    }\n  } catch (e) {\n    console.log('Scrape failed:', e);\n  }\n  \n  return null;\n};\n\nconst imageUrl = await getImageUrl();\n\nreturn {\n  pinUrl: pinUrl,\n  imageUrl: imageUrl,\n  success: imageUrl !== null,\n  message: imageUrl ? 'Image URL extracted successfully' : 'Failed to extract image URL'\n};"
+      },
+      "id": "9e1f5a6b-7c8d-9e0f-1a2b-3c4d5e6f7a8b",
+      "name": "Extract Pinterest Image URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $node[\"Extract Pinterest Image URL\"].json.success }}",
+              "operation": "equals",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "0f2a6b7c-8d9e-0f1a-2b3c-4d5e6f7a8b9c",
+      "name": "Image Extracted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $node[\"Extract Pinterest Image URL\"].json.imageUrl }}",
+        "authentication": "none",
+        "options": {}
+      },
+      "id": "1a3b4c5d-6e7f-8a9b-0c1d-2e3f4a5b6c7d",
+      "name": "Download Pinterest Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1450,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Instagram Graph API Constants\nconst instagramAccountId = '967454269255245';\nconst instagramToken = 'IGAANv5QAOLk1BZAFloVFNpazYwOGs1X3E2ZA1YwZA3RIQnZALazd6QTUxb2ZA1VDEzVUk1NExuS0pRd2xGSUZATTTVZAWEdNUnBIQ2VCekk4VXBxcEpDZAzlNMy1PZA2R2QS10OFBmSTdYM0E1STYxeTVVdEl1RHlWVDNBQXBiektwOXZAfUQZDZD';\n\n// Fixed caption as per requirements\nconst caption = `🔥 Men's Fashion Inspiration\n\nUpgrade your wardrobe with timeless style and confidence.\n\n💬 Comment \"LINK\" for product links\n📌 Save this look for later\n👔 Follow @styleformenindia for daily men's fashion inspiration\n\n#mensfashion #mensstyle #outfitideas #fashion #style #menswear #streetwear #casualstyle #outfitinspiration #styleformen #fashionreels #indianmensfashion #dailyoutfit #styleinspo #fashiontips`;\n\nreturn {\n  accountId: instagramAccountId,\n  token: instagramToken,\n  caption: caption,\n  imageData: $node[\"Download Pinterest Image\"].json\n};"
+      },
+      "id": "2b4c5d6e-7f8a-9b0c-1d2e-3f4a5b6c7d8e",
+      "name": "Prepare Instagram Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1650,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.instagram.com/v18.0/{{ $node[\"Prepare Instagram Upload\"].json.accountId }}/media",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParametersUi": "keyValue",
+        "bodyParameters": [
+          {
+            "name": "image_url",
+            "value": "={{ $node[\"Extract Pinterest Image URL\"].json.imageUrl }}"
+          },
+          {
+            "name": "caption",
+            "value": "={{ $node[\"Prepare Instagram Upload\"].json.caption }}"
+          },
+          {
+            "name": "access_token",
+            "value": "={{ $node[\"Prepare Instagram Upload\"].json.token }}"
+          }
+        ]
+      },
+      "id": "3c5d6e7f-8a9b-0c1d-2e3f-4a5b6c7d8e9f",
+      "name": "Create Instagram Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1850,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract container ID from response\nconst response = $node[\"Create Instagram Container\"].json;\nconst containerId = response.id;\n\nreturn {\n  containerId: containerId,\n  success: !!containerId,\n  message: containerId ? `Container created: ${containerId}` : 'Failed to create container'\n};"
+      },
+      "id": "4d6e7f8a-9b0c-1d2e-3f4a-5b6c7d8e9f0a",
+      "name": "Check Container Creation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $node[\"Check Container Creation\"].json.success }}",
+              "operation": "equals",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "5e7f8a9b-0c1d-2e3f-4a5b-6c7d8e9f0a1b",
+      "name": "Container Created?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "id": "6f8a9b0c-1d2e-3f4a-5b6c-7d8e9f0a1b2c",
+      "name": "Wait for Instagram Processing",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        2450,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.instagram.com/v18.0/{{ $node[\"Prepare Instagram Upload\"].json.accountId }}/media_publish",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParametersUi": "keyValue",
+        "bodyParameters": [
+          {
+            "name": "creation_id",
+            "value": "={{ $node[\"Check Container Creation\"].json.containerId }}"
+          },
+          {
+            "name": "access_token",
+            "value": "={{ $node[\"Prepare Instagram Upload\"].json.token }}"
+          }
+        ]
+      },
+      "id": "7a9b0c1d-2e3f-4a5b-6c7d-8e9f0a1b2c3d",
+      "name": "Publish to Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2650,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const publishResponse = $node[\"Publish to Instagram\"].json;\nconst postId = publishResponse.id;\n\nreturn {\n  postId: postId,\n  success: !!postId,\n  message: postId ? `Published successfully! Post ID: ${postId}` : 'Failed to publish'\n};"
+      },
+      "id": "8b0c1d2e-3f4a-5b6c-7d8e-9f0a1b2c3d4e",
+      "name": "Check Publish Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2850,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "credentialType": "googleSheetsOAuth2",
+        "documentId": "15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960",
+        "resource": "append",
+        "sheetName": "Sheet1",
+        "columns": "Pinterest_URL,Status,Added_Date,Posted_Date,Instagram_Post_ID"
+      },
+      "id": "9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
+      "name": "Update Sheet - Mark as POSTED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 2,
+      "position": [
+        3050,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare data to update the sheet\nconst pendingUrl = $node[\"Check for Pending URLs\"].json.pendingUrl;\nconst rowIndex = $node[\"Check for Pending URLs\"].json.rowIndex;\nconst postId = $node[\"Check Publish Success\"].json.postId;\nconst now = new Date().toISOString();\n\nreturn {\n  url: pendingUrl,\n  status: 'POSTED',\n  postedDate: now,\n  postId: postId,\n  rowIndex: rowIndex\n};"
+      },
+      "id": "0d2e3f4a-5b6c-7d8e-9f0a-1b2c3d4e5f6a",
+      "name": "Prepare Update Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960/values/Sheet1!E{{ $node[\"Prepare Update Data\"].json.rowIndex }}",
+        "authentication": "predefinedCredentialType",
+        "credentialType": "googleSheetsOAuth2",
+        "sendBody": true,
+        "bodyParametersUi": "json",
+        "body": "{\n  \"values\": [\n    [\"{{ $node[\"Prepare Update Data\"].json.status }}\", \"{{ $node[\"Prepare Update Data\"].json.postedDate }}\", \"{{ $node[\"Prepare Update Data\"].json.postId }}\"]\n  ]\n}"
+      },
+      "id": "1e3f4a5b-6c7d-8e9f-0a1b-2c3d4e5f6a7b",
+      "name": "Update Google Sheet Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3250,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sendMessage",
+        "chatId": "7446081188",
+        "text": "✅ Posted Successfully\n\nPinterest URL: {{ $node[\"Check for Pending URLs\"].json.pendingUrl }}\nInstagram Post ID: {{ $node[\"Check Publish Success\"].json.postId }}\n\nTime: {{ now.toISOString() }}"
+      },
+      "id": "2f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c",
+      "name": "Send Telegram Success",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        3450,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sendMessage",
+        "chatId": "7446081188",
+        "text": "❌ Failed to post to Instagram\n\nPinterest URL: {{ $node[\"Check for Pending URLs\"].json.pendingUrl }}\n\nError: Image extraction failed\nTime: {{ now.toISOString() }}"
+      },
+      "id": "3a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d",
+      "name": "Send Telegram - Image Failed",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sendMessage",
+        "chatId": "7446081188",
+        "text": "❌ Failed to post to Instagram\n\nPinterest URL: {{ $node[\"Check for Pending URLs\"].json.pendingUrl }}\n\nError: Container creation failed\nTime: {{ now.toISOString() }}"
+      },
+      "id": "4b6c7d8e-9f0a-1b2c-3d4e-5f6a7b8c9d0e",
+      "name": "Send Telegram - Container Failed",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        2450,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sendMessage",
+        "chatId": "7446081188",
+        "text": "📋 No pending URLs found in queue\n\nAdd more Pinterest links to get started!\nTime: {{ now.toISOString() }}"
+      },
+      "id": "5c7d8e9f-0a1b-2c3d-4e5f-6a7b8c9d0e1f",
+      "name": "Send Telegram - No Pending",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        850,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "triggerEvents": ["Form Submitted"],
+        "path": "add-pinterest-url",
+        "authentication": "none"
+      },
+      "id": "6d8e9f0a-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+      "name": "Webhook - Add URL",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and validate Pinterest URL\nconst url = $node[\"Webhook - Add URL\"].json.body.pinterest_url || '';\n\nconst isValidPinterestUrl = (url) => {\n  return url.includes('pinterest.com') || url.includes('pin.it');\n};\n\nreturn {\n  url: url.trim(),\n  isValid: isValidPinterestUrl(url),\n  status: 'PENDING',\n  addedDate: new Date().toISOString()\n};"
+      },
+      "id": "7e9f0a1b-2c3d-4e5f-6a7b-8c9d0e1f2a3b",
+      "name": "Validate URL Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $node[\"Validate URL Input\"].json.isValid }}",
+              "operation": "equals",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "8f0a1b2c-3d4e-5f6a-7b8c-9d0e1f2a3b4c",
+      "name": "URL Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        650,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "credentialType": "googleSheetsOAuth2",
+        "documentId": "15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960",
+        "resource": "append",
+        "sheetName": "Sheet1",
+        "columns": "Pinterest_URL,Status,Added_Date"
+      },
+      "id": "9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "name": "Append URL to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 2,
+      "position": [
+        850,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sendMessage",
+        "chatId": "7446081188",
+        "text": "✅ New Pinterest URL Added\n\nURL: {{ $node[\"Validate URL Input\"].json.url }}\nStatus: PENDING\nAdded: {{ $node[\"Validate URL Input\"].json.addedDate }}\n\nWill be posted in next cycle!"
+      },
+      "id": "0b2c3d4e-5f6a-7b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Send Telegram - URL Added",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sendMessage",
+        "chatId": "7446081188",
+        "text": "❌ Invalid Pinterest URL\n\nReceived: {{ $node[\"Webhook - Add URL\"].json.body.pinterest_url }}\n\nPlease provide a valid Pinterest URL (pinterest.com or pin.it)"
+      },
+      "id": "1c3d4e5f-6a7b-8c9d-0e1f-2a3b4c5d6e7f",
+      "name": "Send Telegram - Invalid URL",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        850,
+        700
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger - Schedule Daily Posts": {
+      "main": [
+        [
+          {
+            "node": "Read Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Check for Pending URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Pending URLs": {
+      "main": [
+        [
+          {
+            "node": "Has Pending URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Pending URL?": {
+      "main": [
+        [
+          {
+            "node": "Extract Pinterest Image URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Telegram - No Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Pinterest Image URL": {
+      "main": [
+        [
+          {
+            "node": "Image Extracted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image Extracted?": {
+      "main": [
+        [
+          {
+            "node": "Download Pinterest Image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Telegram - Image Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Pinterest Image": {
+      "main": [
+        [
+          {
+            "node": "Prepare Instagram Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Instagram Upload": {
+      "main": [
+        [
+          {
+            "node": "Create Instagram Container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Instagram Container": {
+      "main": [
+        [
+          {
+            "node": "Check Container Creation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Container Creation": {
+      "main": [
+        [
+          {
+            "node": "Container Created?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Container Created?": {
+      "main": [
+        [
+          {
+            "node": "Wait for Instagram Processing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Telegram - Container Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Instagram Processing": {
+      "main": [
+        [
+          {
+            "node": "Publish to Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish to Instagram": {
+      "main": [
+        [
+          {
+            "node": "Check Publish Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Publish Success": {
+      "main": [
+        [
+          {
+            "node": "Prepare Update Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Update Data": {
+      "main": [
+        [
+          {
+            "node": "Update Google Sheet Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Google Sheet Row": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Add URL": {
+      "main": [
+        [
+          {
+            "node": "Validate URL Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate URL Input": {
+      "main": [
+        [
+          {
+            "node": "URL Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "URL Valid?": {
+      "main": [
+        [
+          {
+            "node": "Append URL to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Telegram - Invalid URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append URL to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram - URL Added",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
