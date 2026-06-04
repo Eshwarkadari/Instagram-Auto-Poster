@@ -1,138 +1,150 @@
-# Pinterest → Instagram Automation - Complete Setup Guide
-
-## 🎯 What This Does
-- Paste Pinterest URLs anytime via webhook
-- Auto-posts 3x daily (9AM, 1PM, 7PM IST)
-- Never reposts same URL twice
-- Sends Telegram notifications
-- Tracks everything in Google Sheets
+# Pinterest → Instagram Auto Poster
+## Google Sheets Queue System — Complete Setup Guide
 
 ---
 
-## 📋 STEP 1 — Create Google Sheet
-
-1. Go to [sheets.google.com](https://sheets.google.com)
-2. Create new spreadsheet named: `Pinterest Instagram Queue`
-3. Add these exact column headers in Row 1:
-
-| A | B | C | D | E | F |
-|---|---|---|---|---|---|
-| ID | Pinterest_URL | Status | Added_Date | Posted_Date | Instagram_Post_ID |
-
-4. Copy the Sheet ID from URL:
-   `https://docs.google.com/spreadsheets/d/`**`THIS_IS_YOUR_SHEET_ID`**`/edit`
+## 🎯 How It Works
+1. You add Pinterest URLs to Google Sheet with Status = PENDING
+2. Every day at 9AM, 2PM, 7PM IST — workflow runs automatically
+3. Picks first PENDING URL → downloads image → posts to Instagram
+4. Updates Status to POSTED → sends Telegram notification
+5. Never posts same URL twice!
 
 ---
 
-## 📋 STEP 2 — Create Telegram Bot
+## 📋 STEP 1 — Google Sheet Setup
 
-1. Open Telegram → search `@BotFather`
-2. Send `/newbot`
-3. Give it a name: `StyleForMenIndia Bot`
-4. Copy the **Bot Token**
-5. Start your bot → send any message
-6. Get your Chat ID:
-   Visit: `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`
-   Find `"chat":{"id":YOUR_CHAT_ID}`
+Your sheet ID: `15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960`
 
----
-
-## 📋 STEP 3 — Import Workflow into n8n
-
-1. Open your n8n instance
-2. Click **+** → **Import from file**
-3. Upload `pinterest_instagram_workflow.json`
-
----
-
-## 📋 STEP 4 — Add Credentials in n8n
-
-### Google Sheets:
-1. Credentials → New → **Google Sheets OAuth2**
-2. Follow OAuth setup
-3. Name it: `Google Sheets`
-
-### Telegram:
-1. Credentials → New → **Telegram**
-2. Enter your Bot Token
-3. Name it: `Telegram Bot`
-
----
-
-## 📋 STEP 5 — Add Variables in n8n
-
-Go to **Settings → Variables** → Add these:
-
-| Variable | Value |
-|---|---|
-| `GOOGLE_SHEET_ID` | Your Sheet ID from Step 1 |
-| `INSTAGRAM_ACCESS_TOKEN` | Your Instagram token |
-| `INSTAGRAM_ACCOUNT_ID` | `1108019899065402` |
-| `TELEGRAM_CHAT_ID` | Your Chat ID from Step 2 |
-
----
-
-## 📋 STEP 6 — Add Pinterest URLs
-
-**Method 1 — Webhook (Recommended):**
-```bash
-curl -X POST https://YOUR_N8N_URL/webhook/add-pinterest-url \
-  -H "Content-Type: application/json" \
-  -d '{"pinterest_url": "https://pin.it/ABC123"}'
+Make sure Row 1 has EXACTLY these headers:
+```
+Pinterest_URL | Status
 ```
 
-**Method 2 — Direct in Google Sheet:**
-- Paste URL in column B
-- Set Status = `PENDING` in column C
-- Set Added_Date in column D
+To add URLs — just paste in column A, set column B = PENDING
+
+Example:
+```
+Pinterest_URL                          | Status
+https://pin.it/abc123                  | PENDING
+https://in.pinterest.com/pin/xyz456/   | PENDING
+```
 
 ---
 
-## 📋 STEP 7 — Activate Both Workflows
+## 📋 STEP 2 — Import Workflow into n8n
 
-1. Open `Webhook - Add URL` workflow → Toggle **Active**
-2. Open `Cron - 9AM 1PM 7PM IST` workflow → Toggle **Active**
+1. Open your n8n instance
+2. Click **+** → **Import from file** or **Import from URL**
+3. Import: `n8n/workflow_gsheets.json` from your GitHub repo
+
+Or use raw URL:
+```
+https://raw.githubusercontent.com/Eshwarkadari/Instagram-Auto-Poster/main/n8n/workflow_gsheets.json
+```
+
+---
+
+## 📋 STEP 3 — Connect Google Sheets in n8n
+
+1. Go to **Credentials → New**
+2. Select **Google Sheets OAuth2 API**
+3. Name it exactly: `Google Sheets OAuth2`
+4. Click **Connect** → Sign in with your Google account
+5. Allow permissions
+
+---
+
+## 📋 STEP 4 — Connect Telegram in n8n
+
+1. Go to **Credentials → New**
+2. Select **Telegram**
+3. Name it exactly: `Telegram Bot`
+4. Enter your Bot Token (from @BotFather)
+5. Save
+
+Your Chat ID is already set: `7446081188`
+
+---
+
+## 📋 STEP 5 — Activate the Workflow
+
+1. Open the imported workflow in n8n
+2. Toggle the **Active** switch ON
+3. Done! It will run automatically at 9AM, 2PM, 7PM IST
+
+---
+
+## 📋 STEP 6 — Test Manually
+
+1. Open workflow in n8n
+2. Click **Execute Workflow** button
+3. Check your Instagram for the new post
+4. Check Telegram for notification
+5. Check Google Sheet — Status should change to POSTED
 
 ---
 
 ## ⏰ Auto Schedule (IST Times)
-| Cron | IST Time |
-|---|---|
-| `0 3 * * *` | 9:00 AM |
-| `0 7 * * *` | 1:00 PM |
-| `0 13 * * *` | 7:00 PM |
+| Cron | UTC | IST |
+|------|-----|-----|
+| `0 3 * * *` | 3:00 AM UTC | 8:30 AM IST |
+| `0 8 * * *` | 8:00 AM UTC | 1:30 PM IST |
+| `0 13 * * *` | 1:00 PM UTC | 6:30 PM IST |
 
 ---
 
 ## 📊 Google Sheet Status Values
 | Status | Meaning |
-|---|---|
+|--------|---------|
 | `PENDING` | Waiting to be posted |
-| `POSTED` | Successfully posted |
-| `FAILED` | Error - will retry |
+| `POSTED` | Successfully posted ✅ |
+| `FAILED` | Error occurred — change back to PENDING to retry |
 
 ---
 
 ## 🔔 Telegram Notifications
-**Success:** ✅ Post ID + Pinterest URL + Time
-**Failure:** ❌ Error message + URL marked FAILED
+**Success message:**
+```
+✅ Posted to Instagram!
+🔗 Pinterest: https://pin.it/...
+📸 Post ID: 17846...
+🕐 Time: 2026-06-01 09:00:00
+📊 Queue left: 15 URLs
+```
+
+**Failure message:**
+```
+❌ Post Failed!
+🔗 URL: https://pin.it/...
+⚠️ Error: ...
+🔄 Change Status to PENDING in sheet to retry
+```
+
+---
+
+## ➕ How To Add More Pinterest URLs
+Just open your Google Sheet and add:
+- Column A: Pinterest URL
+- Column B: PENDING
+
+That's it! System picks them automatically in order.
 
 ---
 
 ## ⚠️ Important Notes
-- Instagram token expires every 60 days — refresh regularly!
-- Max 25 posts per 24 hours (Instagram limit)
-- FAILED URLs can be reset to PENDING manually to retry
-- Add unlimited URLs — system posts in order
+- Instagram token expires every **60 days** — regenerate when needed
+- Max **25 posts per 24 hours** (Instagram API limit)
+- If a post FAILS → change Status back to PENDING in sheet to retry
+- Keep adding URLs to never run out of content!
 
 ---
 
-## 🛠️ Troubleshooting
-
-**"No PENDING URLs"** → Add more Pinterest URLs to queue
-
-**"Host not in allowlist"** → Switch Facebook App to Live mode
-
-**"Invalid token"** → Regenerate Instagram token in Graph API Explorer
-
-**Image not posting** → Pinterest URL may have expired — add fresh URLs
+## 🛠️ Credentials Summary
+| Item | Value |
+|------|-------|
+| Google Sheet ID | `15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960` |
+| Instagram Account ID | `967454269255245` |
+| Telegram Chat ID | `7446081188` |
+| Instagram Posts/Day | 3 |
+| Schedule | 9AM, 2PM, 7PM IST |
