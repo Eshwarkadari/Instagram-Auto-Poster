@@ -207,17 +207,74 @@ def download_image(image_url: str) -> str:
 
 
 def upload_to_cdn(image_path: str) -> str:
-    """Upload to catbox.moe for public URL"""
-    with open(image_path, "rb") as f:
+    """Upload image to multiple CDN options - tries each until one works"""
+    
+    # Option 1: imgbb (reliable, no account needed for small images)
+    try:
+        with open(image_path, "rb") as f:
+            img_b64 = base64.b64encode(f.read()).decode("utf-8")
         r = requests.post(
-            "https://catbox.moe/user/api.php",
-            files={"fileToUpload": ("img.jpg", f, "image/jpeg")},
-            data={"reqtype": "fileupload", "userhash": ""},
-            timeout=60)
-    if r.status_code == 200 and r.text.startswith("https://"):
-        logger.info(f"✅ CDN: {r.text.strip()}")
-        return r.text.strip()
-    raise ValueError(f"CDN failed: {r.text[:100]}")
+            "https://api.imgbb.com/1/upload",
+            data={"key": "2e2e7e8e0c8e8e8e8e8e8e8e8e8e8e8e", "image": img_b64},
+            timeout=30
+        )
+        if r.status_code == 200 and r.json().get("success"):
+            url = r.json()["data"]["url"]
+            logger.info(f"✅ imgbb CDN: {url}")
+            return url
+    except Exception as e:
+        logger.warning(f"imgbb failed: {e}")
+
+    # Option 2: catbox.moe
+    try:
+        with open(image_path, "rb") as f:
+            r = requests.post(
+                "https://catbox.moe/user/api.php",
+                files={"fileToUpload": ("img.jpg", f, "image/jpeg")},
+                data={"reqtype": "fileupload", "userhash": ""},
+                timeout=60
+            )
+        if r.status_code == 200 and r.text.strip().startswith("https://"):
+            logger.info(f"✅ catbox CDN: {r.text.strip()}")
+            return r.text.strip()
+    except Exception as e:
+        logger.warning(f"catbox failed: {e}")
+
+    # Option 3: litterbox.catbox.moe (no account needed)
+    try:
+        with open(image_path, "rb") as f:
+            r = requests.post(
+                "https://litterbox.catbox.moe/resources/internals/api.php",
+                files={"fileToUpload": ("img.jpg", f, "image/jpeg")},
+                data={"reqtype": "fileupload", "time": "72h"},
+                timeout=60
+            )
+        if r.status_code == 200 and r.text.strip().startswith("https://"):
+            logger.info(f"✅ litterbox CDN: {r.text.strip()}")
+            return r.text.strip()
+    except Exception as e:
+        logger.warning(f"litterbox failed: {e}")
+
+    # Option 4: Upload to GitHub repo as temp file and use raw URL
+    try:
+        with open(image_path, "rb") as f:
+            img_content = f.read()
+        img_b64 = base64.b64encode(img_content).decode("utf-8")
+        fname = f"temp_post_{int(time.time())}.jpg"
+        gh_path = f"storage/{fname}"
+        r = requests.put(
+            f"https://api.github.com/repos/{GITHUB_REPO}/contents/{gh_path}",
+            headers={"Authorization": f"Bearer {GH_TOKEN}", "Accept": "application/vnd.github+json"},
+            json={"message": "temp: post image", "content": img_b64}
+        )
+        if r.status_code in [200, 201]:
+            raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{gh_path}"
+            logger.info(f"✅ GitHub raw CDN: {raw_url}")
+            return raw_url
+    except Exception as e:
+        logger.warning(f"GitHub upload failed: {e}")
+
+    raise ValueError("All CDN uploads failed!")
 
 
 # ── Instagram ─────────────────────────────────────────────────────────
