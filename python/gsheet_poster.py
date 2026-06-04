@@ -316,6 +316,27 @@ def send_telegram(msg: str):
         logger.warning(f"Telegram: {e}")
 
 
+def update_sheet_status(pin_url):
+
+    try:
+
+        WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwkvG2B_ewPkyt2nibNa61i1SOiPno3yj5ikMexuPE6yo3q6xVkuShqbFt9gj5htqgZ/exec"
+
+        r = requests.get(
+            WEBAPP_URL,
+            params={"url": pin_url},
+            timeout=20
+        )
+
+        logger.info(
+            f"Sheet update response: {r.text}"
+        )
+
+    except Exception as e:
+
+        logger.warning(
+            f"Sheet update failed: {e}"
+        )
 # ── Main ──────────────────────────────────────────────────────────────
 def main():
     logger.info("🚀 Starting Pinterest → Instagram Auto Poster")
@@ -361,6 +382,7 @@ def main():
 
         # Step 5: Mark as done
         mark_url_posted(pin_url)
+        update_sheet_status(pin_url)
 
         send_telegram(
             f"✅ <b>Posted to Instagram!</b>\n\n"
