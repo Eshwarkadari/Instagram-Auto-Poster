@@ -1,0 +1,310 @@
+
+{
+  "name": "Pinterest Instagram - Google Sheets Queue (3 posts/day)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 3 * * *" },
+            { "field": "cronExpression", "expression": "0 8 * * *" },
+            { "field": "cronExpression", "expression": "0 13 * * *" }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Cron 9AM 2PM 7PM IST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 400]
+    },
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [100, 600]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": { "value": "15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960" },
+        "sheetName": { "value": "Sheet1" },
+        "options": {}
+      },
+      "id": "read-all-rows",
+      "name": "Read Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [320, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\nconst pending = rows.filter(r => {\n  const s = (r.json.Status || r.json.status || '').toString().trim().toUpperCase();\n  return s === 'PENDING';\n});\n\nif (pending.length === 0) {\n  throw new Error('Queue empty! Add more Pinterest URLs to Google Sheet.');\n}\n\nconst first = pending[0].json;\nconst pinUrl = (first.Pinterest_URL || first.pinterest_url || first['Pinterest_URL'] || '').trim();\n\nif (!pinUrl) throw new Error('Pinterest URL is empty in sheet');\n\nconsole.log('Processing:', pinUrl);\nconsole.log('Queue remaining:', pending.length);\n\nreturn [{ json: { pinterest_url: pinUrl, total_pending: pending.length } }];"
+      },
+      "id": "find-pending",
+      "name": "Find PENDING URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.pinterest.com/oembed.json?url={{ encodeURIComponent($json.pinterest_url) }}",
+        "options": {
+          "timeout": 15000,
+          "retry": { "enabled": true, "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "fetch-oembed",
+      "name": "Fetch Pinterest oEmbed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst prev = $('Find PENDING URL').first().json;\n\nlet img = data.thumbnail_url || data.url || '';\nif (!img) throw new Error('No image found for: ' + prev.pinterest_url);\n\nfor (const [low, high] of [['236x','originals'],['474x','originals'],['736x','originals'],['170x','originals']]) {\n  img = img.replace(low, high);\n}\n\nconsole.log('Image URL:', img);\nreturn [{ json: { ...prev, image_url: img } }];"
+      },
+      "id": "extract-image",
+      "name": "Extract Image URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.image_url }}",
+        "options": {
+          "response": { "response": { "responseFormat": "file" } },
+          "timeout": 30000,
+          "retry": { "enabled": true, "maxTries": 3, "waitBetweenTries": 3000 }
+        }
+      },
+      "id": "download-image",
+      "name": "Download Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://catbox.moe/user/api.php",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "reqtype", "value": "fileupload" },
+            { "name": "userhash", "value": "" },
+            { "name": "fileToUpload", "parameterType": "formBinaryData", "inputDataFieldName": "data" }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": { "enabled": true, "maxTries": 3, "waitBetweenTries": 3000 }
+        }
+      },
+      "id": "upload-cdn",
+      "name": "Upload to CDN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1420, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst prev = $('Extract Image URL').first().json;\n\nlet publicUrl = '';\nif (typeof resp === 'string' && resp.startsWith('https://')) {\n  publicUrl = resp.trim();\n} else if (resp.body && typeof resp.body === 'string' && resp.body.startsWith('https://')) {\n  publicUrl = resp.body.trim();\n} else {\n  publicUrl = prev.image_url;\n  console.log('CDN fallback: using Pinterest URL');\n}\n\nconsole.log('Public URL:', publicUrl);\n\nconst caption = `🔥 Men\'s Fashion Inspiration\\n\\nUpgrade your wardrobe with timeless style and confidence.\\n\\n💬 Comment \"LINK\" for product links\\n📌 Save this look for later\\n👔 Follow @styleformenindia for daily men\'s fashion inspiration\\n\\n#mensfashion #mensstyle #outfitideas #fashion #style #menswear #streetwear #casualstyle #outfitinspiration #styleformen #fashionreels #indianmensfashion #dailyoutfit #styleinspo #fashiontips`;\n\nreturn [{ json: { ...prev, public_url: publicUrl, caption } }];"
+      },
+      "id": "build-caption",
+      "name": "Build Caption",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/967454269255245/media",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "image_url", "value": "={{ $json.public_url }}" },
+            { "name": "caption", "value": "={{ $json.caption }}" },
+            { "name": "access_token", "value": "IGAANv5QAOLk1BZAFloVFNpazYwOGs1X3E2ZA1YwZA3RIQnZALazd6QTUxb2ZA1VDEzVUk1NExuS0pRd2xGSUZATTTVZAWEdNUnBIQ2VCekk4VXBxcEpDZAzlNMy1PZA2R2QS10OFBmSTdYM0E1STYxeTVVdEl1RHlWVDNBQXBiektwOXZAfUQZDZD" }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": { "enabled": true, "maxTries": 3, "waitBetweenTries": 5000 }
+        }
+      },
+      "id": "create-container",
+      "name": "Create IG Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1860, 500]
+    },
+    {
+      "parameters": { "amount": 15, "unit": "seconds" },
+      "id": "wait-node",
+      "name": "Wait 15s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2080, 500],
+      "webhookId": "wait-ig-15s-gsheets"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/967454269255245/media_publish",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "creation_id", "value": "={{ $(\'Create IG Container\').first().json.id }}" },
+            { "name": "access_token", "value": "IGAANv5QAOLk1BZAFloVFNpazYwOGs1X3E2ZA1YwZA3RIQnZALazd6QTUxb2ZA1VDEzVUk1NExuS0pRd2xGSUZATTTVZAWEdNUnBIQ2VCekk4VXBxcEpDZAzlNMy1PZA2R2QS10OFBmSTdYM0E1STYxeTVVdEl1RHlWVDNBQXBiektwOXZAfUQZDZD" }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": { "enabled": true, "maxTries": 3, "waitBetweenTries": 5000 }
+        }
+      },
+      "id": "publish-ig",
+      "name": "Publish to Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2300, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const postId = $input.first().json.id || 'unknown';\nconst now = new Date().toISOString().replace('T',' ').substring(0,19);\nconst prev = $('Build Caption').first().json;\nconsole.log('Posted! ID:', postId);\nreturn [{ json: { ...prev, post_id: postId, posted_at: now } }];"
+      },
+      "id": "prep-update",
+      "name": "Prep Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2520, 500]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": { "value": "15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960" },
+        "sheetName": { "value": "Sheet1" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": { "Status": "POSTED" }
+        },
+        "where": {
+          "values": [{ "lookupColumn": "Pinterest_URL", "lookupValue": "={{ $json.pinterest_url }}" }]
+        },
+        "options": {}
+      },
+      "id": "update-posted",
+      "name": "Update Sheet POSTED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2740, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "7446081188",
+        "text": "=✅ Posted to Instagram!\n\n🔗 Pinterest: {{ $(\'Build Caption\').first().json.pinterest_url }}\n📸 Post ID: {{ $(\'Prep Update\').first().json.post_id }}\n🕐 Time: {{ $(\'Prep Update\').first().json.posted_at }}\n📊 Queue left: {{ $(\'Find PENDING URL\').first().json.total_pending - 1 }} URLs",
+        "additionalFields": {}
+      },
+      "id": "telegram-success",
+      "name": "Telegram Success",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2960, 500],
+      "credentials": {
+        "telegramApi": { "id": "telegram-cred", "name": "Telegram Bot" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconst pinUrl = $('Find PENDING URL').first()?.json?.pinterest_url || 'unknown';\nconsole.error('FAILED:', pinUrl);\nreturn [{ json: { pinterest_url: pinUrl, error_msg: error.message || JSON.stringify(error).substring(0,200), failed_at: new Date().toISOString() } }];"
+      },
+      "id": "error-handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 700]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": { "value": "15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960" },
+        "sheetName": { "value": "Sheet1" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": { "Status": "FAILED" }
+        },
+        "where": {
+          "values": [{ "lookupColumn": "Pinterest_URL", "lookupValue": "={{ $json.pinterest_url }}" }]
+        },
+        "options": {}
+      },
+      "id": "update-failed",
+      "name": "Update Sheet FAILED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2080, 700],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "7446081188",
+        "text": "=❌ Post Failed!\n\n🔗 URL: {{ $(\'Error Handler\').first().json.pinterest_url }}\n⚠️ Error: {{ $(\'Error Handler\').first().json.error_msg }}\n🔄 Change Status to PENDING in sheet to retry",
+        "additionalFields": {}
+      },
+      "id": "telegram-error",
+      "name": "Telegram Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2300, 700],
+      "credentials": {
+        "telegramApi": { "id": "telegram-cred", "name": "Telegram Bot" }
+      }
+    }
+  ],
+  "connections": {
+    "Cron 9AM 2PM 7PM IST": { "main": [[{ "node": "Read Google Sheet", "type": "main", "index": 0 }]] },
+    "Manual Trigger": { "main": [[{ "node": "Read Google Sheet", "type": "main", "index": 0 }]] },
+    "Read Google Sheet": { "main": [[{ "node": "Find PENDING URL", "type": "main", "index": 0 }]] },
+    "Find PENDING URL": { "main": [[{ "node": "Fetch Pinterest oEmbed", "type": "main", "index": 0 }]] },
+    "Fetch Pinterest oEmbed": { "main": [[{ "node": "Extract Image URL", "type": "main", "index": 0 }]] },
+    "Extract Image URL": { "main": [[{ "node": "Download Image", "type": "main", "index": 0 }]] },
+    "Download Image": { "main": [[{ "node": "Upload to CDN", "type": "main", "index": 0 }]] },
+    "Upload to CDN": { "main": [[{ "node": "Build Caption", "type": "main", "index": 0 }]] },
+    "Build Caption": { "main": [[{ "node": "Create IG Container", "type": "main", "index": 0 }]] },
+    "Create IG Container": { "main": [[{ "node": "Wait 15s", "type": "main", "index": 0 }]] },
+    "Wait 15s": { "main": [[{ "node": "Publish to Instagram", "type": "main", "index": 0 }]] },
+    "Publish to Instagram": { "main": [[{ "node": "Prep Update", "type": "main", "index": 0 }]] },
+    "Prep Update": { "main": [[{ "node": "Update Sheet POSTED", "type": "main", "index": 0 }]] },
+    "Update Sheet POSTED": { "main": [[{ "node": "Telegram Success", "type": "main", "index": 0 }]] },
+    "Error Handler": { "main": [[{ "node": "Update Sheet FAILED", "type": "main", "index": 0 }]] },
+    "Update Sheet FAILED": { "main": [[{ "node": "Telegram Error", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "Pinterest Instagram Google Sheets" }]
+}
