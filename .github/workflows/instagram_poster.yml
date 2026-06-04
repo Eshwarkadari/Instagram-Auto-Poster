@@ -1,33 +1,11 @@
-name: Instagram Auto Poster
+name: Instagram Auto Poster (OLD - DISABLED)
 
 on:
-  schedule:
-    - cron: '30 2 * * *'   # 8:00 AM IST
-    - cron: '30 8 * * *'   # 2:00 PM IST
-    - cron: '30 14 * * *'  # 8:00 PM IST
-  workflow_dispatch:        # Manual trigger
+  workflow_dispatch:  # Manual only - disabled scheduled runs
 
 jobs:
   post-to-instagram:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install requests
-
-      - name: Run Instagram Auto Poster
-        env:
-          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
-          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GITHUB_REPO: ${{ github.repository }}
-        run: cd python && python poster.py
+      - name: Notice
+        run: echo "This workflow is disabled. Use Instagram Auto Poster - Google Sheets instead."
