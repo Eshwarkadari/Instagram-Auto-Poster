@@ -1,59 +1,52 @@
 """
 pinterest_downloader.py
-Downloads images/videos from Pinterest URLs
+Pinterest Downloader using yt-dlp
 Author: Kadari Eshwar
 """
-import requests, re, os
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"}
+import os
+import glob
+import yt_dlp
 
-def get_media_url(pinterest_url):
-    """Extract direct media URL from Pinterest page."""
-    try:
-        # Expand short URLs
-        if "pin.it" in pinterest_url:
-            r = requests.get(pinterest_url, headers=HEADERS, allow_redirects=True, timeout=10)
-            pinterest_url = r.url
-
-        r    = requests.get(pinterest_url, headers=HEADERS, timeout=10)
-        html = r.text
-
-        # Check for video first
-        vm = re.search(r'"contentUrl":"(https://v[^"]+\.mp4[^"]*)"', html)
-        if vm:
-            return vm.group(1), "video"
-
-        # Try images in order of quality
-        for pat in [
-            r'"contentUrl":"(https://i\.pinimg\.com/originals/[^"]+)"',
-            r'"url":"(https://i\.pinimg\.com/originals/[^"]+)"',
-            r'(https://i\.pinimg\.com/originals/[^"\s]+\.(?:jpg|jpeg|png))',
-            r'(https://i\.pinimg\.com/736x/[^"\s]+\.(?:jpg|jpeg|png))',
-        ]:
-            m = re.search(pat, html)
-            if m:
-                return m.group(1), "image"
-
-        return None, None
-    except Exception as e:
-        print(f"Error: {e}")
-        return None, None
 
 def download(url, folder="downloads"):
-    """Download media from Pinterest URL."""
-    os.makedirs(folder, exist_ok=True)
-    media_url, media_type = get_media_url(url)
-    if not media_url:
+    """
+    Download Pinterest image/video and return file path + media type
+    """
+
+    try:
+        os.makedirs(folder, exist_ok=True)
+
+        before = set(glob.glob(os.path.join(folder, "*")))
+
+        ydl_opts = {
+            "outtmpl": os.path.join(folder, "%(id)s.%(ext)s"),
+            "quiet": True,
+            "noplaylist": True,
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        after = set(glob.glob(os.path.join(folder, "*")))
+        new_files = list(after - before)
+
+        if not new_files:
+            print("❌ No file downloaded")
+            return None, None
+
+        file_path = max(new_files, key=os.path.getctime)
+
+        ext = file_path.split(".")[-1].lower()
+
+        if ext in ["mp4", "mov", "webm"]:
+            media_type = "video"
+        else:
+            media_type = "image"
+
+        print(f"✅ Downloaded: {file_path}")
+        return file_path, media_type
+
+    except Exception as e:
+        print(f"❌ Pinterest download failed: {e}")
         return None, None
-
-    ext  = media_url.split(".")[-1].split("?")[0]
-    ext  = ext if ext in ["jpg","jpeg","png","mp4","webp"] else "jpg"
-    path = f"{folder}/media_{abs(hash(url)) % 99999}.{ext}"
-
-    r = requests.get(media_url, headers=HEADERS, stream=True, timeout=30)
-    with open(path, "wb") as f:
-        for chunk in r.iter_content(8192):
-            f.write(chunk)
-
-    print(f"✅ Downloaded: {path} ({media_type})")
-    return path, media_type
