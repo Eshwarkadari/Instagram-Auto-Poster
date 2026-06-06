@@ -466,6 +466,61 @@ def get_pinterest_image(original_url: str) -> str:
 # IMAGE DOWNLOAD
 # ─────────────────────────────────────────────────────────────────────────────
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IMAGE CROP — Force safe Instagram photo aspect ratio
+# Instagram converts images taller than 4:5 (e.g. 9:16) into Reels.
+# We crop to exactly 4:5 (1080x1350px) to guarantee a photo post.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def crop_to_instagram_photo(image_path: str) -> str:
+    """
+    Crop image to 4:5 aspect ratio (Instagram safe photo format).
+    - Square (1:1) or landscape: pad/leave as-is (Instagram handles fine)
+    - Portrait taller than 4:5: crop vertically from center
+    Returns path to cropped image (overwrites input).
+    """
+    try:
+        from PIL import Image
+
+        img = Image.open(image_path).convert("RGB")
+        w, h = img.size
+        ratio = h / w
+        logger.info(f"Image dimensions: {w}x{h} | ratio: {ratio:.3f}")
+
+        # Instagram photo limits:
+        #   Min ratio: 4:5  (portrait)  h/w = 1.25
+        #   Max ratio: 1.91:1 (landscape) h/w = 0.524
+        # If image is taller than 4:5, crop from center
+        MAX_RATIO = 1.25  # 4:5
+
+        if ratio > MAX_RATIO:
+            # Crop height to fit 4:5 ratio
+            new_h = int(w * MAX_RATIO)
+            top = (h - new_h) // 2
+            img = img.crop((0, top, w, top + new_h))
+            logger.info(f"✅ Cropped to {w}x{new_h} (4:5 ratio) — prevents Reel conversion")
+
+        # Resize to standard Instagram resolution if needed
+        target_w = 1080
+        if img.width != target_w:
+            target_h = int(img.height * target_w / img.width)
+            img = img.resize((target_w, target_h), Image.LANCZOS)
+            logger.info(f"✅ Resized to {target_w}x{target_h}")
+
+        img.save(image_path, "JPEG", quality=95, optimize=True)
+        size = os.path.getsize(image_path)
+        logger.info(f"✅ Saved cropped image: {size:,} bytes")
+        return image_path
+
+    except ImportError:
+        logger.warning("Pillow not installed — skipping crop (image posted as-is)")
+        return image_path
+    except Exception as e:
+        logger.warning(f"Crop failed (using original): {e}")
+        return image_path
+
+
 def download_image(image_url: str) -> str:
     """Download Pinterest image to /tmp/post.jpg. Tries multiple resolutions."""
     img_headers = {
@@ -497,6 +552,9 @@ def download_image(image_url: str) -> str:
                     size = os.path.getsize(path)
                     if size > 5000:
                         logger.info(f"✅ Downloaded {size:,} bytes | {url[:60]}")
+                        # Crop to safe Instagram photo ratio (4:5 = 1080x1350)
+                        # Prevents Instagram from auto-converting tall images to Reels
+                        path = crop_to_instagram_photo(path)
                         return path
                     logger.warning(f"File too small: {size} bytes")
                 else:
@@ -571,14 +629,21 @@ def upload_to_cdn(image_path: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def post_to_instagram(image_url: str) -> str:
-    """Create media container then publish. Returns post ID."""
-    logger.info(f"Creating IG container | account={INSTAGRAM_ACCOUNT_ID}")
+    """
+    Post as a PHOTO (not Reel) to Instagram feed.
+    Key: media_type=IMAGE forces a static photo post.
+    Instagram may still show tall images as Reels — we crop to
+    safe 4:5 ratio (1080x1350) before uploading to avoid that.
+    """
+    logger.info(f"Creating IG IMAGE container | account={INSTAGRAM_ACCOUNT_ID}")
 
+    # Step 1: Create media container — explicitly IMAGE type, not Reel
     r = requests.post(
         f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media",
         data={
-            "image_url": image_url,
-            "caption": CAPTION,
+            "image_url":   image_url,
+            "caption":     CAPTION,
+            "media_type":  "IMAGE",           # Explicit: forces photo post, never Reel
             "access_token": INSTAGRAM_ACCESS_TOKEN,
         }, timeout=30)
     logger.info(f"Container: HTTP {r.status_code} | {r.text[:300]}")
@@ -586,20 +651,42 @@ def post_to_instagram(image_url: str) -> str:
         raise ValueError(f"Container creation failed: {r.text}")
 
     container_id = r.json()["id"]
-    logger.info(f"Container ID: {container_id} — waiting 15s...")
-    time.sleep(15)
 
+    # Step 2: Poll container status — wait until FINISHED (not just 15s sleep)
+    logger.info(f"Container ID: {container_id} — polling status...")
+    for attempt in range(12):   # up to 60s total
+        time.sleep(5)
+        status_r = requests.get(
+            f"https://graph.facebook.com/v19.0/{container_id}",
+            params={"fields": "status_code,status", "access_token": INSTAGRAM_ACCESS_TOKEN},
+            timeout=10)
+        if status_r.status_code == 200:
+            status_data = status_r.json()
+            status_code = status_data.get("status_code", "")
+            logger.info(f"  Container status: {status_code} (attempt {attempt+1}/12)")
+            if status_code == "FINISHED":
+                break
+            if status_code in ("ERROR", "EXPIRED"):
+                raise ValueError(f"Container processing failed: {status_data}")
+        else:
+            logger.warning(f"  Status poll HTTP {status_r.status_code}")
+    else:
+        logger.warning("Container status never reached FINISHED — publishing anyway")
+
+    # Step 3: Publish
     r2 = requests.post(
         f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media_publish",
         data={
-            "creation_id": container_id,
+            "creation_id":  container_id,
             "access_token": INSTAGRAM_ACCESS_TOKEN,
         }, timeout=30)
     logger.info(f"Publish: HTTP {r2.status_code} | {r2.text[:300]}")
     if r2.status_code != 200:
         raise ValueError(f"Publish failed: {r2.text}")
 
-    return r2.json()["id"]
+    post_id = r2.json()["id"]
+    logger.info(f"✅ Published as PHOTO post | ID: {post_id}")
+    return post_id
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -718,3 +805,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
