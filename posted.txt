@@ -1,5 +1,3 @@
-# Links that have been posted to Instagram
-# This file is updated automatically by the automation
-# Format: DATE | LINK
-https://in.pinterest.com/pin/987484655813476549
+# Posted URLs — updated automatically by automation
+# Format: YYYY-MM-DD HH:MM IST | URL
 https://in.pinterest.com/pin/987484655813476549
