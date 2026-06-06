@@ -1,18 +1,24 @@
 """
-gsheet_poster.py - Pinterest to Instagram via Google Sheets Queue
-v5: COMPLETE FIX
-  - Clean pin ID from ANY URL (including /sent/?invite_code=)
-  - Skip bad URLs and auto-try next PENDING
-  - Robust HTML fetch via 4 proxies
-  - 6 image extraction methods
-Author: Kadari Eshwar
+gsheet_poster.py - Pinterest → Instagram Auto Poster
+v6 FINAL - Production ready
+  ✅ Resolves pin.it shortlinks (GitHub Actions IPs can do this)
+  ✅ Extracts pin ID from ANY URL variant (/sent/, /repin/, /invite/)
+  ✅ 6 image extraction methods with proper fallbacks
+  ✅ 4 HTML proxy fallbacks for Pinterest blocking
+  ✅ Skips bad URLs and tries next PENDING automatically
+  ✅ CDN upload with 3 fallbacks
+  ✅ Full Telegram notifications
+Author: Kadari Eshwar (@styleformenindia)
 """
 
 import os, requests, base64, re, time, logging, csv, io, random, json, urllib.parse
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+# ── Environment Variables ──────────────────────────────────────────────────────
 INSTAGRAM_ACCESS_TOKEN = os.environ["INSTAGRAM_ACCESS_TOKEN"]
 INSTAGRAM_ACCOUNT_ID   = os.environ.get("INSTAGRAM_ACCOUNT_ID", "967454269255245")
 TELEGRAM_BOT_TOKEN     = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -21,7 +27,10 @@ GOOGLE_SHEET_ID        = os.environ.get("GOOGLE_SHEET_ID", "15jDXVQTA7mjc9vWkF13
 GH_TOKEN               = os.environ["GH_TOKEN"]
 GITHUB_REPO            = os.environ.get("GITHUB_REPO", "Eshwarkadari/Instagram-Auto-Poster")
 
-HEADERS_GH = {"Authorization": f"Bearer {GH_TOKEN}", "Accept": "application/vnd.github+json"}
+HEADERS_GH = {
+    "Authorization": f"Bearer {GH_TOKEN}",
+    "Accept": "application/vnd.github+json"
+}
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -41,7 +50,7 @@ Upgrade your wardrobe with timeless style and confidence.
 #mensfashion #mensstyle #outfitideas #fashion #style #menswear #streetwear #casualstyle #outfitinspiration #styleformen #fashionreels #indianmensfashion #dailyoutfit #styleinspo #fashiontips"""
 
 
-def get_headers(referer="https://www.google.com/"):
+def browser_headers(referer="https://www.google.com/"):
     return {
         "User-Agent": random.choice(USER_AGENTS),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -54,11 +63,12 @@ def get_headers(referer="https://www.google.com/"):
     }
 
 
-# ─────────────────────────────────────────────────────────────────────
-# GOOGLE SHEET
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# GOOGLE SHEET — read PENDING URLs
+# ─────────────────────────────────────────────────────────────────────────────
 
 def get_sheet_rows():
+    """Read queue from Google Sheet. Falls back to links.txt in repo."""
     for method, url in [
         ("CSV",  f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv&gid=0"),
         ("gviz", f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv"),
@@ -68,175 +78,181 @@ def get_sheet_rows():
                              headers={"User-Agent": USER_AGENTS[0]})
             if r.status_code == 200 and "," in r.text:
                 rows = list(csv.DictReader(io.StringIO(r.text)))
-                logger.info(f"✅ Sheet {method}: {len(rows)} rows | Columns: {list(rows[0].keys()) if rows else []}")
+                logger.info(f"✅ Sheet ({method}): {len(rows)} rows | cols={list(rows[0].keys()) if rows else []}")
                 return rows
         except Exception as e:
             logger.warning(f"Sheet {method}: {e}")
 
-    # Fallback: links.txt in repo
-    logger.warning("Sheet unavailable — using links.txt")
+    # Fallback: links.txt
+    logger.warning("Sheet unavailable — falling back to links.txt")
     try:
         r = requests.get(
             f"https://api.github.com/repos/{GITHUB_REPO}/contents/links.txt",
-            headers=HEADERS_GH)
+            headers=HEADERS_GH, timeout=10)
         content = base64.b64decode(r.json()["content"]).decode("utf-8")
         lines = [l.strip() for l in content.split("\n")
                  if l.strip() and not l.startswith("#") and "pin" in l.lower()]
         logger.info(f"✅ links.txt: {len(lines)} URLs")
         return [{"Pinterest_URL": u, "Status": "PENDING"} for u in lines]
     except Exception as e:
-        logger.error(f"links.txt: {e}")
+        logger.error(f"links.txt failed: {e}")
         return []
 
 
 def mark_url_posted(pin_url: str):
+    """Remove from links.txt, add to posted.txt."""
     try:
+        # Remove from links.txt
         r = requests.get(
             f"https://api.github.com/repos/{GITHUB_REPO}/contents/links.txt",
-            headers=HEADERS_GH)
+            headers=HEADERS_GH, timeout=10)
         d = r.json()
         content = base64.b64decode(d["content"]).decode("utf-8")
-        new_content = "\n".join(
-            [l for l in content.split("\n") if l.strip() != pin_url.strip()])
+        lines = [l for l in content.split("\n") if l.strip() != pin_url.strip()]
         requests.put(
             f"https://api.github.com/repos/{GITHUB_REPO}/contents/links.txt",
             headers=HEADERS_GH,
-            json={"message": "Auto: posted", "sha": d["sha"],
-                  "content": base64.b64encode(new_content.encode()).decode()})
+            json={"message": f"Auto: posted {pin_url[:40]}",
+                  "sha": d["sha"],
+                  "content": base64.b64encode("\n".join(lines).encode()).decode()})
 
+        # Add to posted.txt
         r2 = requests.get(
             f"https://api.github.com/repos/{GITHUB_REPO}/contents/posted.txt",
-            headers=HEADERS_GH)
-        posted = base64.b64decode(r2.json()["content"]).decode("utf-8") if r2.status_code == 200 else ""
+            headers=HEADERS_GH, timeout=10)
+        existing = base64.b64decode(r2.json()["content"]).decode("utf-8") if r2.status_code == 200 else "# Posted URLs\n"
         sha2 = r2.json().get("sha") if r2.status_code == 200 else None
-        new_posted = posted.strip() + "\n" + pin_url + "\n"
-        p = {"message": "Auto: marked posted",
-             "content": base64.b64encode(new_posted.encode()).decode()}
+        timestamp = time.strftime("%Y-%m-%d %H:%M IST")
+        new_entry = f"{timestamp} | {pin_url}"
+        new_posted = existing.rstrip() + "\n" + new_entry + "\n"
+        payload = {"message": "Auto: mark posted",
+                   "content": base64.b64encode(new_posted.encode()).decode()}
         if sha2:
-            p["sha"] = sha2
+            payload["sha"] = sha2
         requests.put(
             f"https://api.github.com/repos/{GITHUB_REPO}/contents/posted.txt",
-            headers=HEADERS_GH, json=p)
+            headers=HEADERS_GH, json=payload)
         logger.info("✅ links.txt + posted.txt updated")
     except Exception as e:
-        logger.warning(f"mark_posted: {e}")
+        logger.warning(f"mark_url_posted: {e}")
 
 
-def update_sheet_status(pin_url):
+def update_sheet_status(pin_url: str):
+    """Mark URL as POSTED in Google Sheet via Apps Script."""
     try:
         WEBAPP_URL = ("https://script.google.com/macros/s/"
                       "AKfycbwkvG2B_ewPkyt2nibNa61i1SOiPno3yj5ikMexuPE6yo3q6xVkuShqbFt9gj5htqgZ/exec")
         r = requests.get(WEBAPP_URL, params={"url": pin_url}, timeout=20)
-        logger.info(f"Sheet update: {r.text}")
+        logger.info(f"Sheet status update: {r.text[:100]}")
     except Exception as e:
-        logger.warning(f"Sheet update: {e}")
+        logger.warning(f"Sheet status update: {e}")
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # PINTEREST URL CLEANING
-# The CORE fix: extract pin ID from ANY URL variant including:
-#   pin.it/xxxx  →  resolve redirect  →  pinterest.com/pin/ID/sent/?invite_code=...
-#   Then strip everything after /pin/ID/ to get clean URL
-# ─────────────────────────────────────────────────────────────────────
+# Handles: pin.it/xxx, pinterest.com/pin/ID/, /pin/ID/sent/?invite_code=, etc.
+# ─────────────────────────────────────────────────────────────────────────────
 
-def get_clean_pin_url(original_url: str) -> tuple:
+def get_clean_pin_url(original_url: str):
     """
-    Returns (clean_url, pin_id) where clean_url is always:
-      https://www.pinterest.com/pin/{pin_id}/
-    Works for pin.it shortlinks, /sent/ invite URLs, /repin/, etc.
-    Returns (None, None) if no pin ID can be found.
+    Returns (clean_url, pin_id) or (None, None).
+    clean_url is always: https://www.pinterest.com/pin/{pin_id}/
+    Resolves pin.it shortlinks first, then extracts pin ID from ANY path.
     """
     url = original_url.strip()
 
-    # Step 1: Resolve pin.it shortlinks via redirect
+    # Resolve pin.it shortlinks (GitHub Actions IPs can do this)
     if "pin.it" in url:
         logger.info(f"Resolving shortlink: {url}")
         for method in ("HEAD", "GET"):
             try:
                 fn = requests.head if method == "HEAD" else requests.get
-                r = fn(url, timeout=15, headers=get_headers(), allow_redirects=True)
-                url = r.url
-                logger.info(f"  {method} → {url}")
-                if "pinterest" in url:
+                r = fn(url, timeout=15, headers=browser_headers(), allow_redirects=True)
+                if "pinterest" in r.url:
+                    url = r.url
+                    logger.info(f"  Resolved ({method}) → {url[:80]}")
+                    break
+                # Also check for Location header in non-follow HEAD
+                loc = r.headers.get("Location", "")
+                if loc and "pinterest" in loc:
+                    url = loc
+                    logger.info(f"  Location header → {url[:80]}")
                     break
             except Exception as e:
-                logger.warning(f"  {method} resolve failed: {e}")
+                logger.warning(f"  {method} resolve: {e}")
 
-    # Step 2: Extract numeric pin ID from whatever URL we have
-    # Matches /pin/123456789/ in any position, ignoring everything after
+    # Extract numeric pin ID from URL path
+    # Works for: /pin/123456/, /pin/123456/sent/, /pin/123456/?ref=...
     m = re.search(r'/pin/(\d+)', url)
     if not m:
-        logger.error(f"No pin ID found in: {url}")
+        logger.error(f"Cannot find pin ID in: {url}")
         return None, None
 
     pin_id = m.group(1)
     clean_url = f"https://www.pinterest.com/pin/{pin_id}/"
-    logger.info(f"✅ Clean URL: {clean_url}  (pin_id={pin_id})")
+    logger.info(f"✅ Clean URL: {clean_url} (pin_id={pin_id})")
     return clean_url, pin_id
 
 
-# ─────────────────────────────────────────────────────────────────────
-# HTML FETCH — Direct + 4 Proxy fallbacks
-# GitHub Actions IPs are often blocked by Pinterest.
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# HTML FETCH — Direct + 4 proxy fallbacks
+# Pinterest blocks GitHub Actions IPs; proxies work around this
+# ─────────────────────────────────────────────────────────────────────────────
 
 def fetch_html(url: str) -> str:
-    """Fetch page HTML. Try direct first, then proxies."""
+    """Fetch page HTML via direct request or proxies."""
 
-    # Direct
+    # Direct request
     try:
-        r = requests.get(url, timeout=20,
-                         headers=get_headers("https://www.google.com/"),
+        r = requests.get(url, timeout=20, headers=browser_headers("https://www.google.com/"),
                          allow_redirects=True)
-        if r.status_code == 200 and len(r.text) > 1000:
-            logger.info(f"✅ Direct fetch ({len(r.text)} chars)")
+        if r.status_code == 200 and len(r.text) > 500:
+            logger.info(f"✅ Direct fetch: {len(r.text):,} chars")
             return r.text
         logger.warning(f"Direct: HTTP {r.status_code}, {len(r.text)} chars")
     except Exception as e:
-        logger.warning(f"Direct: {e}")
+        logger.warning(f"Direct fetch: {e}")
+
+    enc = urllib.parse.quote(url, safe="")
 
     # Proxy 1: allorigins.win
     try:
-        r = requests.get(
-            f"https://api.allorigins.win/get?url={urllib.parse.quote(url)}",
-            timeout=25, headers={"User-Agent": USER_AGENTS[0]})
+        r = requests.get(f"https://api.allorigins.win/get?url={enc}",
+                         timeout=25, headers={"User-Agent": USER_AGENTS[0]})
         if r.status_code == 200:
             html = r.json().get("contents", "")
-            if html and len(html) > 1000:
-                logger.info(f"✅ allorigins ({len(html)} chars)")
+            if len(html) > 500:
+                logger.info(f"✅ allorigins: {len(html):,} chars")
                 return html
     except Exception as e:
         logger.warning(f"allorigins: {e}")
 
     # Proxy 2: corsproxy.io
     try:
-        r = requests.get(
-            f"https://corsproxy.io/?{urllib.parse.quote(url)}",
-            timeout=25, headers=get_headers())
-        if r.status_code == 200 and len(r.text) > 1000:
-            logger.info(f"✅ corsproxy ({len(r.text)} chars)")
+        r = requests.get(f"https://corsproxy.io/?{enc}",
+                         timeout=25, headers=browser_headers())
+        if r.status_code == 200 and len(r.text) > 500:
+            logger.info(f"✅ corsproxy: {len(r.text):,} chars")
             return r.text
     except Exception as e:
         logger.warning(f"corsproxy: {e}")
 
     # Proxy 3: thingproxy
     try:
-        r = requests.get(
-            f"https://thingproxy.freeboard.io/fetch/{url}",
-            timeout=25, headers={"User-Agent": USER_AGENTS[0]})
-        if r.status_code == 200 and len(r.text) > 1000:
-            logger.info(f"✅ thingproxy ({len(r.text)} chars)")
+        r = requests.get(f"https://thingproxy.freeboard.io/fetch/{url}",
+                         timeout=25, headers={"User-Agent": USER_AGENTS[0]})
+        if r.status_code == 200 and len(r.text) > 500:
+            logger.info(f"✅ thingproxy: {len(r.text):,} chars")
             return r.text
     except Exception as e:
         logger.warning(f"thingproxy: {e}")
 
-    # Proxy 4: htmlpreview (last resort)
+    # Proxy 4: codetabs
     try:
-        r = requests.get(
-            f"https://api.codetabs.com/v1/proxy?quest={urllib.parse.quote(url)}",
-            timeout=25, headers={"User-Agent": USER_AGENTS[0]})
-        if r.status_code == 200 and len(r.text) > 1000:
-            logger.info(f"✅ codetabs ({len(r.text)} chars)")
+        r = requests.get(f"https://api.codetabs.com/v1/proxy?quest={enc}",
+                         timeout=25, headers={"User-Agent": USER_AGENTS[0]})
+        if r.status_code == 200 and len(r.text) > 500:
+            logger.info(f"✅ codetabs: {len(r.text):,} chars")
             return r.text
     except Exception as e:
         logger.warning(f"codetabs: {e}")
@@ -245,27 +261,29 @@ def fetch_html(url: str) -> str:
     return ""
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # IMAGE EXTRACTION FROM HTML
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 def extract_image_from_html(html: str) -> str:
+    """Extract highest-quality Pinterest image URL from page HTML."""
     if not html:
         return None
 
-    # Pattern priority: highest resolution first
     patterns = [
-        # og:image (most reliable)
+        # og:image — most reliable, always highest available resolution
         r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
         r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
-        # Pinterest CDN originals
+        # CDN originals
         r'"contentUrl"\s*:\s*"(https://i\.pinimg\.com/originals/[^"]+)"',
         r'"url"\s*:\s*"(https://i\.pinimg\.com/originals/[^"]+)"',
         r'(https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp))',
         # 736x fallback
         r'(https://i\.pinimg\.com/736x/[a-f0-9/]+\.(?:jpg|jpeg|png|webp))',
+        # 474x fallback
+        r'(https://i\.pinimg\.com/474x/[a-f0-9/]+\.(?:jpg|jpeg|png|webp))',
         # Any pinimg
-        r'(https://i\.pinimg\.com/[^\s"\'<>]+\.(?:jpg|jpeg|png|webp))',
+        r'(https://i\.pinimg\.com/[^\s"\'<>\\]+\.(?:jpg|jpeg|png|webp))',
     ]
 
     for pat in patterns:
@@ -273,12 +291,11 @@ def extract_image_from_html(html: str) -> str:
         if m:
             img = m.group(1).replace("&amp;", "&")
             if "pinimg.com" in img:
-                # Upgrade to originals resolution
                 img = re.sub(r'/\d+x\d*/', '/originals/', img)
-                logger.info(f"✅ HTML regex extracted: {img[:80]}")
+                logger.info(f"✅ HTML extract: {img[:80]}")
                 return img
 
-    # JSON-LD structured data
+    # JSON-LD
     for block in re.findall(
             r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>([\s\S]*?)</script>',
             html, re.I):
@@ -298,39 +315,44 @@ def extract_image_from_html(html: str) -> str:
     return None
 
 
-# ─────────────────────────────────────────────────────────────────────
-# MAIN IMAGE EXTRACTION — 6 methods in order
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN IMAGE EXTRACTION — 6 methods
+# ─────────────────────────────────────────────────────────────────────────────
 
 def get_pinterest_image(original_url: str) -> str:
-    # ── STEP 0: Get clean pin URL with extracted pin ID ───────────────
+    """
+    Extract image URL from a Pinterest pin using 6 cascading methods.
+    Always cleans the URL first (handles pin.it, /sent/, /repin/, etc.)
+    """
+
+    # ── Step 0: Get clean canonical URL + pin ID ───────────────────────────
     clean_url, pin_id = get_clean_pin_url(original_url)
     if not clean_url or not pin_id:
-        raise ValueError(f"Cannot extract pin ID from URL: {original_url}")
+        raise ValueError(f"Cannot extract pin ID from: {original_url}")
+    logger.info(f"Working | pin_id={pin_id} | url={clean_url}")
 
-    logger.info(f"Extracting image | pin_id={pin_id} | url={clean_url}")
-
-    # ── Method 1: oEmbed API ──────────────────────────────────────────
-    for try_url in [clean_url, original_url]:
+    # ── Method 1: oEmbed API ───────────────────────────────────────────────
+    # Try original URL first (pin.it sometimes works in oEmbed), then clean URL
+    for try_url in list(dict.fromkeys([original_url, clean_url])):
         try:
             r = requests.get(
                 f"https://www.pinterest.com/oembed.json?url={urllib.parse.quote(try_url)}",
-                timeout=12, headers=get_headers("https://www.pinterest.com/"))
+                timeout=12, headers=browser_headers("https://www.pinterest.com/"))
             if r.status_code == 200:
                 data = r.json()
                 img = data.get("thumbnail_url", "")
+                # Upgrade resolution: replace 236x/474x/736x with originals
                 for res in ["236x", "474x", "736x"]:
-                    img = img.replace(res, "originals")
+                    img = img.replace(f"/{res}/", "/originals/")
                 if img and "pinimg.com" in img:
                     logger.info(f"✅ Method 1 oEmbed: {img[:80]}")
                     return img
-                logger.warning(f"oEmbed OK but no image in response")
             else:
-                logger.warning(f"oEmbed HTTP {r.status_code}")
+                logger.warning(f"oEmbed HTTP {r.status_code} for {try_url[:50]}")
         except Exception as e:
-            logger.warning(f"oEmbed: {e}")
+            logger.warning(f"oEmbed ({try_url[:40]}): {e}")
 
-    # ── Method 2: Pinterest internal API v3 ──────────────────────────
+    # ── Method 2: Pinterest internal PinResource API ───────────────────────
     try:
         api_url = (
             f"https://www.pinterest.com/resource/PinResource/get/"
@@ -338,46 +360,44 @@ def get_pinterest_image(original_url: str) -> str:
             f"&data=%7B%22options%22%3A%7B%22id%22%3A%22{pin_id}%22%7D%7D"
         )
         r = requests.get(api_url, timeout=12, headers={
-            **get_headers("https://www.pinterest.com/"),
+            **browser_headers("https://www.pinterest.com/"),
             "X-Requested-With": "XMLHttpRequest",
             "Accept": "application/json",
         })
         if r.status_code == 200:
-            raw = r.text
-            # Search raw JSON string for any pinimg URL
-            m = re.search(
+            # Search the entire JSON response for pinimg URLs
+            for pat in [
                 r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp)',
-                raw, re.I)
-            if not m:
-                m = re.search(
-                    r'https://i\.pinimg\.com/[^\s"\'\\]+\.(?:jpg|jpeg|png|webp)',
-                    raw, re.I)
-            if m:
-                img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
-                logger.info(f"✅ Method 2 API v3: {img[:80]}")
-                return img
-        logger.warning(f"API v3: HTTP {r.status_code}")
+                r'https://i\.pinimg\.com/736x/[a-f0-9/]+\.(?:jpg|jpeg|png|webp)',
+                r'https://i\.pinimg\.com/[^\s"\'\\]+\.(?:jpg|jpeg|png|webp)',
+            ]:
+                m = re.search(pat, r.text, re.I)
+                if m:
+                    img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
+                    logger.info(f"✅ Method 2 PinResource API: {img[:80]}")
+                    return img
+        logger.warning(f"PinResource API: HTTP {r.status_code}")
     except Exception as e:
-        logger.warning(f"API v3: {e}")
+        logger.warning(f"PinResource API: {e}")
 
-    # ── Method 3: Scrape clean pin page (direct + proxies) ───────────
+    # ── Method 3: Scrape clean pin page (direct + 4 proxies) ──────────────
     html = fetch_html(clean_url)
     img = extract_image_from_html(html)
     if img:
         logger.info(f"✅ Method 3 HTML scrape: {img[:80]}")
         return img
 
-    # ── Method 4: Wayback Machine cached version ──────────────────────
+    # ── Method 4: Wayback Machine (archive.org) ────────────────────────────
     try:
         logger.info("Trying Wayback Machine...")
-        avail_url = f"https://archive.org/wayback/available?url=pinterest.com/pin/{pin_id}/"
-        r = requests.get(avail_url, timeout=15, headers={"User-Agent": USER_AGENTS[0]})
+        r = requests.get(
+            f"https://archive.org/wayback/available?url=pinterest.com/pin/{pin_id}/",
+            timeout=15, headers={"User-Agent": USER_AGENTS[0]})
         if r.status_code == 200:
             snap = r.json().get("archived_snapshots", {}).get("closest", {})
             if snap.get("available") and snap.get("url"):
-                snap_url = snap["url"]
-                logger.info(f"Wayback snapshot: {snap_url}")
-                html2 = fetch_html(snap_url)
+                logger.info(f"Wayback snapshot: {snap['url']}")
+                html2 = fetch_html(snap["url"])
                 img = extract_image_from_html(html2)
                 if img:
                     logger.info(f"✅ Method 4 Wayback: {img[:80]}")
@@ -385,73 +405,86 @@ def get_pinterest_image(original_url: str) -> str:
     except Exception as e:
         logger.warning(f"Wayback: {e}")
 
-    # ── Method 5: Pinterest mobile API ───────────────────────────────
+    # ── Method 5: Pinterest mobile/pidget API ──────────────────────────────
     try:
         r = requests.get(
             f"https://api.pinterest.com/v3/pidgets/pins/info/?pin_ids={pin_id}",
             timeout=12, headers={
-                "User-Agent": "Pinterest/10.0 (iPhone; iOS 16.0)",
+                "User-Agent": "Pinterest/10.0 (iPhone; iOS 16.0; Scale/2.0)",
                 "Accept": "application/json",
             })
         if r.status_code == 200:
-            raw = r.text
-            m = re.search(
+            for pat in [
+                r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp)',
                 r'https://i\.pinimg\.com/[^\s"\'\\]+\.(?:jpg|jpeg|png|webp)',
-                raw, re.I)
-            if m:
-                img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
-                logger.info(f"✅ Method 5 Mobile API: {img[:80]}")
-                return img
+            ]:
+                m = re.search(pat, r.text, re.I)
+                if m:
+                    img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
+                    logger.info(f"✅ Method 5 Mobile API: {img[:80]}")
+                    return img
+        logger.warning(f"Mobile API: HTTP {r.status_code}")
     except Exception as e:
         logger.warning(f"Mobile API: {e}")
 
-    # ── Method 6: Pinterest search image endpoint ─────────────────────
+    # ── Method 6: Pinterest GraphQL API ───────────────────────────────────
     try:
+        payload = {
+            "options": {
+                "field_set_key": "unauth_react",
+                "id": pin_id,
+            },
+            "context": {}
+        }
         r = requests.get(
-            f"https://i.pinimg.com/736x/{pin_id[:2]}/{pin_id[2:4]}/{pin_id[4:6]}/{pin_id}.jpg",
-            timeout=10, headers=get_headers())
-        # This URL pattern doesn't always work but try it
-        if r.status_code == 200 and len(r.content) > 5000:
-            # Upload this directly
-            path = "/tmp/direct.jpg"
-            with open(path, "wb") as f:
-                f.write(r.content)
-            logger.info(f"✅ Method 6 direct CDN guess: {len(r.content)} bytes")
-            return f"ALREADY_DOWNLOADED:{path}"
+            "https://www.pinterest.com/resource/PinResource/get/",
+            params={"source_url": f"/pin/{pin_id}/",
+                    "data": json.dumps(payload),
+                    "_": str(int(time.time() * 1000))},
+            headers={
+                **browser_headers("https://www.pinterest.com/"),
+                "X-Pinterest-AppState": "active",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            timeout=15)
+        if r.status_code == 200:
+            m = re.search(
+                r'https://i\.pinimg\.com/[^\s"\'\\]+\.(?:jpg|jpeg|png|webp)',
+                r.text, re.I)
+            if m:
+                img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
+                logger.info(f"✅ Method 6 GraphQL: {img[:80]}")
+                return img
+        logger.warning(f"GraphQL: HTTP {r.status_code}")
     except Exception as e:
-        logger.warning(f"Direct CDN: {e}")
+        logger.warning(f"GraphQL: {e}")
 
-    raise ValueError(f"All 6 methods failed for pin_id={pin_id} | original={original_url}")
+    raise ValueError(f"All 6 methods exhausted | pin_id={pin_id} | url={original_url}")
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # IMAGE DOWNLOAD
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 def download_image(image_url: str) -> str:
-    # Special case: already downloaded by method 6
-    if image_url.startswith("ALREADY_DOWNLOADED:"):
-        path = image_url.split(":", 1)[1]
-        if os.path.exists(path) and os.path.getsize(path) > 5000:
-            return path
-
+    """Download Pinterest image to /tmp/post.jpg. Tries multiple resolutions."""
     img_headers = {
-        **get_headers("https://www.pinterest.com/"),
+        **browser_headers("https://www.pinterest.com/"),
         "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
         "Sec-Fetch-Dest": "image",
         "Sec-Fetch-Mode": "no-cors",
-        "Sec-Fetch-Site": "cross-site",
     }
 
-    # Try originals, 736x, 474x variants
-    urls_to_try = [image_url]
+    # Build URL variants to try (highest resolution first)
+    urls = [image_url]
     if "originals" in image_url:
-        urls_to_try.append(image_url.replace("originals", "736x"))
-        urls_to_try.append(image_url.replace("originals", "474x"))
+        urls += [image_url.replace("originals", "736x"),
+                 image_url.replace("originals", "474x")]
     elif "736x" in image_url:
-        urls_to_try.append(image_url.replace("736x", "originals"))
+        urls += [image_url.replace("736x", "originals"),
+                 image_url.replace("736x", "474x")]
 
-    for url in urls_to_try:
+    for url in urls:
         for attempt in range(3):
             try:
                 r = requests.get(url, timeout=30, headers=img_headers,
@@ -463,24 +496,26 @@ def download_image(image_url: str) -> str:
                             f.write(chunk)
                     size = os.path.getsize(path)
                     if size > 5000:
-                        logger.info(f"✅ Downloaded {size:,} bytes from {url[:60]}")
+                        logger.info(f"✅ Downloaded {size:,} bytes | {url[:60]}")
                         return path
-                    logger.warning(f"Too small: {size} bytes")
+                    logger.warning(f"File too small: {size} bytes")
                 else:
                     logger.warning(f"HTTP {r.status_code}: {url[:60]}")
             except Exception as e:
                 logger.warning(f"Download attempt {attempt+1}: {e}")
             time.sleep(1)
 
-    raise ValueError(f"Cannot download image: {image_url}")
+    raise ValueError(f"Cannot download image from: {image_url}")
 
 
-# ─────────────────────────────────────────────────────────────────────
-# CDN UPLOAD
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# CDN UPLOAD — 3 options, auto-fallback
+# ─────────────────────────────────────────────────────────────────────────────
 
 def upload_to_cdn(image_path: str) -> str:
-    # 1. catbox.moe (permanent, no account needed)
+    """Upload image to a public CDN so Instagram can fetch it."""
+
+    # Option 1: catbox.moe — permanent free hosting
     try:
         with open(image_path, "rb") as f:
             r = requests.post(
@@ -488,13 +523,14 @@ def upload_to_cdn(image_path: str) -> str:
                 files={"fileToUpload": ("img.jpg", f, "image/jpeg")},
                 data={"reqtype": "fileupload", "userhash": ""},
                 timeout=60)
-        if r.status_code == 200 and r.text.strip().startswith("https://"):
-            logger.info(f"✅ catbox: {r.text.strip()}")
-            return r.text.strip()
+        url = r.text.strip()
+        if r.status_code == 200 and url.startswith("https://"):
+            logger.info(f"✅ CDN catbox: {url}")
+            return url
     except Exception as e:
         logger.warning(f"catbox: {e}")
 
-    # 2. litterbox (72h)
+    # Option 2: litterbox.catbox.moe — 72h hosting
     try:
         with open(image_path, "rb") as f:
             r = requests.post(
@@ -502,60 +538,63 @@ def upload_to_cdn(image_path: str) -> str:
                 files={"fileToUpload": ("img.jpg", f, "image/jpeg")},
                 data={"reqtype": "fileupload", "time": "72h"},
                 timeout=60)
-        if r.status_code == 200 and r.text.strip().startswith("https://"):
-            logger.info(f"✅ litterbox: {r.text.strip()}")
-            return r.text.strip()
+        url = r.text.strip()
+        if r.status_code == 200 and url.startswith("https://"):
+            logger.info(f"✅ CDN litterbox: {url}")
+            return url
     except Exception as e:
         logger.warning(f"litterbox: {e}")
 
-    # 3. GitHub raw (always works — uses your own repo)
+    # Option 3: GitHub raw — always works, uses your own repo
     try:
         with open(image_path, "rb") as f:
             img_b64 = base64.b64encode(f.read()).decode("utf-8")
         fname = f"storage/img_{int(time.time())}.jpg"
-
-        # Create storage dir entry if needed
         r = requests.put(
             f"https://api.github.com/repos/{GITHUB_REPO}/contents/{fname}",
             headers=HEADERS_GH,
-            json={"message": "temp: post image", "content": img_b64})
-
+            json={"message": "tmp: post image", "content": img_b64},
+            timeout=30)
         if r.status_code in [200, 201]:
-            # Use raw URL — must wait for GitHub CDN propagation
-            time.sleep(3)
-            raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{fname}"
-            logger.info(f"✅ GitHub raw: {raw_url}")
-            return raw_url
+            time.sleep(3)  # Wait for GitHub CDN propagation
+            url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{fname}"
+            logger.info(f"✅ CDN GitHub raw: {url}")
+            return url
     except Exception as e:
         logger.warning(f"GitHub raw: {e}")
 
-    raise ValueError("All CDN uploads failed!")
+    raise ValueError("All 3 CDN uploads failed!")
 
 
-# ─────────────────────────────────────────────────────────────────────
-# INSTAGRAM
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# INSTAGRAM GRAPH API
+# ─────────────────────────────────────────────────────────────────────────────
 
 def post_to_instagram(image_url: str) -> str:
+    """Create media container then publish. Returns post ID."""
     logger.info(f"Creating IG container | account={INSTAGRAM_ACCOUNT_ID}")
+
     r = requests.post(
         f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media",
         data={
             "image_url": image_url,
             "caption": CAPTION,
-            "access_token": INSTAGRAM_ACCESS_TOKEN
-        })
+            "access_token": INSTAGRAM_ACCESS_TOKEN,
+        }, timeout=30)
     logger.info(f"Container: HTTP {r.status_code} | {r.text[:300]}")
     if r.status_code != 200:
-        raise ValueError(f"Container failed: {r.text}")
+        raise ValueError(f"Container creation failed: {r.text}")
 
     container_id = r.json()["id"]
-    logger.info(f"Container ID: {container_id} — waiting 15s for processing...")
+    logger.info(f"Container ID: {container_id} — waiting 15s...")
     time.sleep(15)
 
     r2 = requests.post(
         f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media_publish",
-        data={"creation_id": container_id, "access_token": INSTAGRAM_ACCESS_TOKEN})
+        data={
+            "creation_id": container_id,
+            "access_token": INSTAGRAM_ACCESS_TOKEN,
+        }, timeout=30)
     logger.info(f"Publish: HTTP {r2.status_code} | {r2.text[:300]}")
     if r2.status_code != 200:
         raise ValueError(f"Publish failed: {r2.text}")
@@ -563,12 +602,13 @@ def post_to_instagram(image_url: str) -> str:
     return r2.json()["id"]
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # TELEGRAM
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 def send_telegram(msg: str):
     if not TELEGRAM_BOT_TOKEN:
+        logger.warning("No Telegram token set")
         return
     try:
         requests.post(
@@ -580,83 +620,100 @@ def send_telegram(msg: str):
         logger.warning(f"Telegram: {e}")
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # MAIN
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 def main():
-    logger.info("🚀 Starting Pinterest → Instagram Auto Poster")
-    logger.info(f"Account: {INSTAGRAM_ACCOUNT_ID}")
+    logger.info("=" * 60)
+    logger.info("🚀 Pinterest → Instagram Auto Poster | v6 FINAL")
+    logger.info(f"   Account : {INSTAGRAM_ACCOUNT_ID}")
+    logger.info(f"   Sheet   : {GOOGLE_SHEET_ID}")
+    logger.info(f"   Repo    : {GITHUB_REPO}")
+    logger.info("=" * 60)
 
+    # Load queue
     rows = get_sheet_rows()
     pending = []
     for row in rows:
         status = (row.get("Status") or row.get("status") or "").strip().upper()
-        url = (row.get("Pinterest_URL") or row.get("pinterest_url") or
-               row.get("Pinterest URL") or "").strip()
+        url = (row.get("Pinterest_URL") or row.get("pinterest_url")
+               or row.get("Pinterest URL") or "").strip()
         if status == "PENDING" and url:
             pending.append(url)
 
-    logger.info(f"📊 {len(pending)} PENDING URLs found")
+    logger.info(f"📊 {len(pending)} PENDING URLs in queue")
 
     if not pending:
-        send_telegram("⚠️ <b>Queue Empty!</b>\n\nAdd Pinterest URLs with Status=PENDING to Google Sheet")
+        logger.warning("Queue is empty!")
+        send_telegram(
+            "⚠️ <b>Queue Empty!</b>\n\n"
+            "No PENDING URLs found.\n"
+            "Add Pinterest URLs with Status=PENDING to your Google Sheet:\n"
+            f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}")
         return
 
+    # Try up to 5 URLs — skip bad ones, post first success
+    MAX_TRY = min(5, len(pending))
     posted = False
-    attempted = 0
-    MAX_ATTEMPTS = min(5, len(pending))  # Try up to 5 URLs per run
+    skip_count = 0
 
-    for pin_url in pending[:MAX_ATTEMPTS]:
-        attempted += 1
-        logger.info(f"\n📌 Attempt {attempted}/{MAX_ATTEMPTS}: {pin_url}")
+    for i, pin_url in enumerate(pending[:MAX_TRY], 1):
+        logger.info(f"\n{'─'*50}")
+        logger.info(f"📌 Attempt {i}/{MAX_TRY}: {pin_url}")
 
         try:
-            image_url = get_pinterest_image(pin_url)
-            img_path  = download_image(image_url)
+            image_url  = get_pinterest_image(pin_url)
+            img_path   = download_image(image_url)
             public_url = upload_to_cdn(img_path)
-            post_id   = post_to_instagram(public_url)
+            post_id    = post_to_instagram(public_url)
 
-            logger.info(f"🎉 SUCCESS! Post ID: {post_id}")
+            logger.info(f"🎉 SUCCESS! Instagram Post ID: {post_id}")
             mark_url_posted(pin_url)
             update_sheet_status(pin_url)
 
             send_telegram(
                 f"✅ <b>Posted to Instagram!</b>\n\n"
-                f"🔗 {pin_url[:60]}\n"
+                f"🔗 {pin_url}\n"
                 f"📸 Post ID: <code>{post_id}</code>\n"
                 f"🕐 {time.strftime('%Y-%m-%d %H:%M')} IST\n"
-                f"📊 {len(pending) - attempted} URLs remaining in queue")
+                f"📊 {len(pending) - i} URLs remaining in queue")
             posted = True
             break
 
-        except Exception as e:
+        except ValueError as e:
             err = str(e)
-            logger.error(f"❌ Failed: {err}")
-
-            # If it's a pin ID extraction failure — bad URL, skip to next silently
-            if "Cannot extract pin ID" in err or "All 6 methods failed" in err:
-                logger.warning(f"Skipping bad URL, trying next...")
+            # Extraction failure = bad URL → skip silently and try next
+            if any(k in err for k in ["Cannot extract pin ID", "All 6 methods", "Cannot find pin"]):
+                skip_count += 1
+                logger.warning(f"⏭  Skipping (bad URL #{skip_count}): {err[:80]}")
                 continue
-
-            # Other errors (IG, CDN, download) — alert and stop
+            # Other failures (IG, CDN) → alert and stop
+            logger.error(f"❌ Fatal error: {err}")
             send_telegram(
                 f"❌ <b>Post Failed!</b>\n\n"
-                f"🔗 {pin_url[:60]}\n"
-                f"⚠️ {err[:300]}\n\n"
-                f"Will retry next scheduled run.")
+                f"🔗 {pin_url}\n"
+                f"⚠️ <code>{err[:400]}</code>\n\n"
+                f"Will retry at next scheduled run.")
+            break
+
+        except Exception as e:
+            logger.error(f"❌ Unexpected error: {e}")
+            send_telegram(
+                f"❌ <b>Unexpected Error!</b>\n\n"
+                f"🔗 {pin_url}\n"
+                f"⚠️ <code>{str(e)[:400]}</code>")
             break
 
     if not posted:
-        bad_urls = pending[:attempted]
-        logger.error(f"Could not post after {attempted} attempts")
+        logger.error(f"Failed after {MAX_TRY} attempts ({skip_count} skipped)")
         send_telegram(
-            f"⚠️ <b>Could not post!</b>\n\n"
-            f"Tried {attempted} URL(s), all failed.\n\n"
-            f"Bad URLs detected:\n" +
-            "\n".join(f"• {u[:60]}" for u in bad_urls[:3]) +
-            "\n\n<b>Please add valid Pinterest pin URLs to the queue.\n"
-            f"Format: https://pinterest.com/pin/123456789/</b>")
+            f"⚠️ <b>Could Not Post!</b>\n\n"
+            f"Tried {MAX_TRY} URLs, none worked.\n\n"
+            f"URLs attempted:\n"
+            + "\n".join(f"• {u}" for u in pending[:MAX_TRY])
+            + "\n\n<b>Please check your Pinterest URLs are valid public pins.</b>\n"
+            f"Use: <code>https://pinterest.com/pin/123456789/</code>")
 
 
 if __name__ == "__main__":
