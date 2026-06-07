@@ -41,15 +41,113 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
 ]
 
-CAPTION = """🔥 Men's Fashion Inspiration
+import random as _random
 
-Upgrade your wardrobe with timeless style and confidence.
+# Rotating viral hook captions — each post gets a different one
+# Research-backed: pattern interrupt + desire + CTA = max saves & shares
+_CAPTIONS = [
+    """POV: You finally figured out how to dress 🔥
 
-💬 Comment "LINK" for product links
-📌 Save this look for later
-👔 Follow @styleformenindia for daily men's fashion inspiration
+Most guys dress basic their whole life.
+This look changes everything.
 
-#mensfashion #mensstyle #outfitideas #fashion #style #menswear #streetwear #casualstyle #outfitinspiration #styleformen #fashionreels #indianmensfashion #dailyoutfit #styleinspo #fashiontips"""
+✅ Save this before your friends steal it
+💬 Comment "FIT" and I'll send you the details
+👔 Follow @styleformenindia — new fits daily
+
+#mensfashion #mensstyle #indianmensfashion #outfitoftheday #fashionreels #styleformen #menswear #ootd #outfitinspo #fashiontips #streetwear #casualstyle #swag #styleinspo #viralmenfashion #dappermen #fashionformen #outfitideas #mensfashionpost #reelsviral""",
+
+    """The outfit that will make people stop and stare 👀
+
+No cap — this is the look you wear when you want to be remembered.
+
+📌 Save this for your next event
+💬 Comment "DETAILS" for outfit breakdown
+👔 Follow @styleformenindia for daily inspo
+
+#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #dapperstyle #classymen #gentlemanstyle #styleinspo #fashiontips #mensfashionblogger #reelsviral #viralreels #outfitinspiration #casualstyle #streetwear #trendingfashion""",
+
+    """Why do stylish men always look confident? 🤔
+
+Because the right outfit isn't just clothes —
+it's armour. It's a statement. It's YOU.
+
+This is yours to steal. 💪
+
+📌 Save it. You'll thank me later.
+💬 Drop "🔥" if this hits different
+👔 Follow @styleformenindia
+
+#mensfashion #confidence #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips #dapper #gentlemen #viralmenfashion #reelsviral #outfitideas #streetwear #casualstyle #swagstyle #trending""",
+
+    """Nobody talks about how much a good outfit changes your life 💯
+
+Job interviews. First dates. Walking into a room.
+The right fit = instant respect.
+
+Start here. 👇
+
+✅ Save this look
+💬 Comment "STYLE" for a full guide
+👔 Follow @styleformenindia — level up daily
+
+#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #fashiontips #styleinspo #dapperstyle #gentlemanstyle #reelsviral #viralreels #trending #outfitinspiration #casualstyle #streetwear #swag #mensfashionpost""",
+
+    """This outfit goes HARD 🔥🔥🔥
+
+If you know, you know.
+If you don't — that's what @styleformenindia is for.
+
+📌 Save before it's gone
+💬 Tag someone who needs this
+👔 Follow for daily men's fashion that actually slaps
+
+#mensfashion #mensstyle #outfitoftheday #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitinspo #styleinspo #fashiontips #streetwear #casualstyle #reelsviral #viralreels #trending #trendingfashion #swagstyle #dapper #outfitideas""",
+
+    """Upgrade your wardrobe. Upgrade your life. 💎
+
+The difference between looking good and looking GREAT
+is knowing what works for YOU.
+
+This works. Trust.
+
+📌 Save this look for your next purchase
+💬 Comment "LINK" for exact products
+👔 Follow @styleformenindia for more
+
+#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #outfitideas #ootd #styleinspo #fashiontips #dapperstyle #gentlemen #classymen #reelsviral #viralreels #trending #outfitinspiration #streetwear #casualstyle #swag""",
+
+    """Men who dress well never go unnoticed 👑
+
+This is your sign to stop dressing average.
+
+3 rules:
+✅ Fit matters more than brand
+✅ Colours that complement your skin
+✅ Accessories seal the deal
+
+Save this. Share it. Live it.
+👔 Follow @styleformenindia
+
+#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #fashiontips #styleinspo #dapper #gentlemanstyle #classymen #reelsviral #viralreels #trending #outfitoftheday #streetwear #casualstyle #swagstyle""",
+
+    """This is the fit that makes her double-tap 😮‍💨🔥
+
+You don't need expensive clothes.
+You need the RIGHT clothes.
+
+📌 Save this look before you forget
+💬 Comment "FIT CHECK" and I'll break it down
+👔 Follow @styleformenindia — 3 fits posted daily
+
+#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips #streetwear #casualstyle #reelsviral #viralreels #trending #trendingfashion #outfitideas #swag #dapper #gentlemen""",
+]
+
+def get_caption():
+    """Return a random viral caption — different every post."""
+    return _random.choice(_CAPTIONS)
+
+CAPTION = get_caption()  # Set once per run
 
 
 def browser_headers(referer="https://www.google.com/"):
@@ -677,7 +775,7 @@ def post_to_instagram(image_path: str) -> str:
         data={
             "video_url":     video_url,
             "media_type":    "REELS",
-            "caption":       CAPTION,
+            "caption":       get_caption(),
             "share_to_feed": "true",
             "access_token":  INSTAGRAM_ACCESS_TOKEN,
         }, timeout=60)
@@ -837,6 +935,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
