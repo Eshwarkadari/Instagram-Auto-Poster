@@ -10,7 +10,7 @@ on:
 jobs:
   post-to-instagram:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repo
@@ -23,7 +23,6 @@ jobs:
 
       - name: Install ffmpeg
         run: |
-          sudo apt-get update -qq
           sudo apt-get install -y ffmpeg
           ffmpeg -version | head -1
 
