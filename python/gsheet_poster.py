@@ -11,7 +11,9 @@ v6 FINAL - Production ready
 Author: Kadari Eshwar (@styleformenindia)
 """
 
-import os, requests, base64, re, time, logging, csv, io, random, json, urllib.parse
+import os, re, time, logging, csv, io, random, json, urllib.parse, subprocess, shutil
+import requests
+import base64
 
 logging.basicConfig(
     level=logging.INFO,
@@ -514,54 +516,66 @@ def download_image(image_url: str) -> str:
 # CDN UPLOAD — 3 options, auto-fallback
 # ─────────────────────────────────────────────────────────────────────────────
 
-def upload_to_cdn(image_path: str) -> str:
-    """Upload image to a public CDN so Instagram can fetch it."""
+def upload_to_cdn(file_path: str) -> str:
+    """
+    Upload image or video to a public CDN.
+    Automatically detects file type (jpg/mp4) and sets correct mime type.
+    Instagram requires publicly accessible URL for both images and videos.
+    """
+    is_video = file_path.endswith(".mp4")
+    mime     = "video/mp4"  if is_video else "image/jpeg"
+    fname_cdn = "reel.mp4"  if is_video else "img.jpg"
+    ext       = ".mp4"      if is_video else ".jpg"
+    logger.info(f"Uploading {'video' if is_video else 'image'} to CDN: {file_path}")
 
-    # Option 1: catbox.moe — permanent free hosting
+    # Option 1: catbox.moe — permanent, supports mp4
     try:
-        with open(image_path, "rb") as f:
+        with open(file_path, "rb") as f:
             r = requests.post(
                 "https://catbox.moe/user/api.php",
-                files={"fileToUpload": ("img.jpg", f, "image/jpeg")},
+                files={"fileToUpload": (fname_cdn, f, mime)},
                 data={"reqtype": "fileupload", "userhash": ""},
-                timeout=60)
+                timeout=120)
         url = r.text.strip()
         if r.status_code == 200 and url.startswith("https://"):
             logger.info(f"✅ CDN catbox: {url}")
             return url
+        logger.warning(f"catbox: HTTP {r.status_code} | {r.text[:100]}")
     except Exception as e:
         logger.warning(f"catbox: {e}")
 
-    # Option 2: litterbox.catbox.moe — 72h hosting
+    # Option 2: litterbox — 72h, supports mp4
     try:
-        with open(image_path, "rb") as f:
+        with open(file_path, "rb") as f:
             r = requests.post(
                 "https://litterbox.catbox.moe/resources/internals/api.php",
-                files={"fileToUpload": ("img.jpg", f, "image/jpeg")},
+                files={"fileToUpload": (fname_cdn, f, mime)},
                 data={"reqtype": "fileupload", "time": "72h"},
-                timeout=60)
+                timeout=120)
         url = r.text.strip()
         if r.status_code == 200 and url.startswith("https://"):
             logger.info(f"✅ CDN litterbox: {url}")
             return url
+        logger.warning(f"litterbox: HTTP {r.status_code} | {r.text[:100]}")
     except Exception as e:
         logger.warning(f"litterbox: {e}")
 
-    # Option 3: GitHub raw — always works, uses your own repo
+    # Option 3: GitHub raw — always works, correct extension for video
     try:
-        with open(image_path, "rb") as f:
-            img_b64 = base64.b64encode(f.read()).decode("utf-8")
-        fname = f"storage/img_{int(time.time())}.jpg"
+        with open(file_path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("utf-8")
+        gh_fname = f"storage/post_{int(time.time())}{ext}"
         r = requests.put(
-            f"https://api.github.com/repos/{GITHUB_REPO}/contents/{fname}",
+            f"https://api.github.com/repos/{GITHUB_REPO}/contents/{gh_fname}",
             headers=HEADERS_GH,
-            json={"message": "tmp: post image", "content": img_b64},
-            timeout=30)
+            json={"message": f"tmp: post {'video' if is_video else 'image'}", "content": b64},
+            timeout=60)
         if r.status_code in [200, 201]:
-            time.sleep(3)  # Wait for GitHub CDN propagation
-            url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{fname}"
+            time.sleep(5)  # Wait for GitHub CDN to propagate
+            url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{gh_fname}"
             logger.info(f"✅ CDN GitHub raw: {url}")
             return url
+        logger.warning(f"GitHub raw: HTTP {r.status_code} | {r.json().get('message','')}")
     except Exception as e:
         logger.warning(f"GitHub raw: {e}")
 
@@ -578,18 +592,24 @@ def image_to_video(image_path: str) -> str:
     Uses ffmpeg (installed via apt in GitHub Actions workflow).
     Output: 1080x1920, 7 seconds, h264, no audio.
     """
-    import subprocess, shutil
-
     output = "/tmp/reel.mp4"
 
     # Find ffmpeg — use absolute path to avoid PATH issues
     ffmpeg_bin = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
     logger.info(f"ffmpeg path: {ffmpeg_bin}")
 
-    if not os.path.exists(ffmpeg_bin):
-        raise ValueError(
-            f"ffmpeg not found at {ffmpeg_bin}. "
-            "Make sure 'sudo apt-get install -y ffmpeg' runs before this step.")
+    if not ffmpeg_bin or not os.path.exists(ffmpeg_bin):
+        # Try common locations
+        for candidate in ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg"]:
+            if os.path.exists(candidate):
+                ffmpeg_bin = candidate
+                break
+        else:
+            raise ValueError(
+                "ffmpeg not found! Add this step to gsheet_poster.yml BEFORE running Python:\n"
+                "  - name: Install ffmpeg\n"
+                "    run: sudo apt-get install -y ffmpeg")
+    logger.info(f"✅ ffmpeg found: {ffmpeg_bin}")
 
     # Step 1: Create 9:16 padded frame with blurred background
     padded = "/tmp/reel_frame.jpg"
@@ -817,6 +837,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
