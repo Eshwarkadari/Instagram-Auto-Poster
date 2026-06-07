@@ -574,37 +574,43 @@ def upload_to_cdn(image_path: str) -> str:
 
 def image_to_video(image_path: str) -> str:
     """
-    Convert a JPG image → MP4 video using ffmpeg.
-    Instagram Reels API REQUIRES video_url — image_url is not accepted.
-    Output: 9:16 portrait video, 7 seconds, 1080x1920, h264.
-    Blurred version of image fills background, original centered on top.
+    Convert a JPG image to a 9:16 MP4 video for Instagram Reels.
+    Uses ffmpeg (installed via apt in GitHub Actions workflow).
+    Output: 1080x1920, 7 seconds, h264, no audio.
     """
-    import subprocess
-    output = "/tmp/reel.mp4"
-    logger.info(f"Converting image to MP4 for Reel upload...")
+    import subprocess, shutil
 
-    # Step 1: Pad/resize image to 9:16 (1080x1920) with blurred background
+    output = "/tmp/reel.mp4"
+
+    # Find ffmpeg — use absolute path to avoid PATH issues
+    ffmpeg_bin = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
+    logger.info(f"ffmpeg path: {ffmpeg_bin}")
+
+    if not os.path.exists(ffmpeg_bin):
+        raise ValueError(
+            f"ffmpeg not found at {ffmpeg_bin}. "
+            "Make sure 'sudo apt-get install -y ffmpeg' runs before this step.")
+
+    # Step 1: Create 9:16 padded frame with blurred background
     padded = "/tmp/reel_frame.jpg"
     pad_cmd = [
-        "ffmpeg", "-y", "-i", image_path,
+        ffmpeg_bin, "-y", "-i", image_path,
         "-vf",
-        # Scale blurred bg to 1080x1920, overlay sharp original centered
         "split[bg][fg];"
         "[bg]scale=1080:1920:force_original_aspect_ratio=increase,"
         "crop=1080:1920,boxblur=20:20[blurred];"
         "[fg]scale=1080:1920:force_original_aspect_ratio=decrease[sharp];"
         "[blurred][sharp]overlay=(W-w)/2:(H-h)/2",
-        "-frames:v", "1", "-q:v", "2",
-        padded
+        "-frames:v", "1", "-q:v", "2", padded
     ]
     r1 = subprocess.run(pad_cmd, capture_output=True, text=True, timeout=60)
     if r1.returncode != 0 or not os.path.exists(padded):
-        logger.warning(f"Pad step failed: {r1.stderr[-300:]} — using original")
+        logger.warning(f"Blur pad failed ({r1.returncode}) — using original image")
         padded = image_path
 
-    # Step 2: Still image → 7-second MP4
+    # Step 2: Image → 7-second MP4
     video_cmd = [
-        "ffmpeg", "-y",
+        ffmpeg_bin, "-y",
         "-loop", "1",
         "-i", padded,
         "-t", "7",
@@ -619,14 +625,15 @@ def image_to_video(image_path: str) -> str:
         "-an",
         output
     ]
+    logger.info(f"Running ffmpeg video conversion...")
     r2 = subprocess.run(video_cmd, capture_output=True, text=True, timeout=120)
     if r2.returncode != 0:
-        raise ValueError(f"ffmpeg failed: {r2.stderr[-500:]}")
+        raise ValueError(f"ffmpeg conversion failed (code {r2.returncode}): {r2.stderr[-600:]}")
 
     size = os.path.getsize(output)
     logger.info(f"✅ MP4 created: {size:,} bytes | 7s | 1080x1920")
     if size < 10000:
-        raise ValueError(f"MP4 too small ({size}b) — ffmpeg may have failed silently")
+        raise ValueError(f"MP4 suspiciously small ({size}b) — check ffmpeg output")
     return output
 
 
@@ -810,6 +817,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
