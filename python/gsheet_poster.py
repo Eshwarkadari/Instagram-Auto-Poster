@@ -572,53 +572,116 @@ def upload_to_cdn(image_path: str) -> str:
 # INSTAGRAM GRAPH API
 # ─────────────────────────────────────────────────────────────────────────────
 
+def image_to_video(image_path: str) -> str:
+    """
+    Convert a JPG image → MP4 video using ffmpeg.
+    Instagram Reels API REQUIRES video_url — image_url is not accepted.
+    Output: 9:16 portrait video, 7 seconds, 1080x1920, h264.
+    Blurred version of image fills background, original centered on top.
+    """
+    import subprocess
+    output = "/tmp/reel.mp4"
+    logger.info(f"Converting image to MP4 for Reel upload...")
+
+    # Step 1: Pad/resize image to 9:16 (1080x1920) with blurred background
+    padded = "/tmp/reel_frame.jpg"
+    pad_cmd = [
+        "ffmpeg", "-y", "-i", image_path,
+        "-vf",
+        # Scale blurred bg to 1080x1920, overlay sharp original centered
+        "split[bg][fg];"
+        "[bg]scale=1080:1920:force_original_aspect_ratio=increase,"
+        "crop=1080:1920,boxblur=20:20[blurred];"
+        "[fg]scale=1080:1920:force_original_aspect_ratio=decrease[sharp];"
+        "[blurred][sharp]overlay=(W-w)/2:(H-h)/2",
+        "-frames:v", "1", "-q:v", "2",
+        padded
+    ]
+    r1 = subprocess.run(pad_cmd, capture_output=True, text=True, timeout=60)
+    if r1.returncode != 0 or not os.path.exists(padded):
+        logger.warning(f"Pad step failed: {r1.stderr[-300:]} — using original")
+        padded = image_path
+
+    # Step 2: Still image → 7-second MP4
+    video_cmd = [
+        "ffmpeg", "-y",
+        "-loop", "1",
+        "-i", padded,
+        "-t", "7",
+        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,"
+               "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1",
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        "-r", "30",
+        "-an",
+        output
+    ]
+    r2 = subprocess.run(video_cmd, capture_output=True, text=True, timeout=120)
+    if r2.returncode != 0:
+        raise ValueError(f"ffmpeg failed: {r2.stderr[-500:]}")
+
+    size = os.path.getsize(output)
+    logger.info(f"✅ MP4 created: {size:,} bytes | 7s | 1080x1920")
+    if size < 10000:
+        raise ValueError(f"MP4 too small ({size}b) — ffmpeg may have failed silently")
+    return output
+
+
 def post_to_instagram(image_path: str) -> str:
     """
-    Post a downloaded photo as an Instagram REEL.
-    No video conversion — Instagram accepts a photo URL with media_type=REELS.
-    Flow: upload photo to CDN → create REELS container → publish.
+    Convert photo to MP4, upload to CDN, post as Instagram REEL.
+    Instagram Reels API requires video_url — cannot use image_url for Reels.
     """
-    logger.info(f"Posting photo as REEL | account={INSTAGRAM_ACCOUNT_ID}")
+    logger.info(f"Preparing Reel | account={INSTAGRAM_ACCOUNT_ID}")
 
-    # Step 1: Upload photo to public CDN
-    public_url = upload_to_cdn(image_path)
-    logger.info(f"CDN URL: {public_url}")
+    # Step 1: Convert image → MP4 (required by Instagram Reels API)
+    video_path = image_to_video(image_path)
 
-    # Step 2: Create REELS media container with image_url
+    # Step 2: Upload MP4 to public CDN
+    video_url = upload_to_cdn(video_path)
+    logger.info(f"Video CDN URL: {video_url}")
+
+    # Step 3: Create Reel container with video_url
     r = requests.post(
         f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media",
         data={
-            "image_url":     public_url,
+            "video_url":     video_url,
             "media_type":    "REELS",
             "caption":       CAPTION,
             "share_to_feed": "true",
             "access_token":  INSTAGRAM_ACCESS_TOKEN,
-        }, timeout=30)
+        }, timeout=60)
     logger.info(f"Container: HTTP {r.status_code} | {r.text[:300]}")
     if r.status_code != 200:
         raise ValueError(f"Reel container failed: {r.text}")
 
     container_id = r.json()["id"]
-    logger.info(f"Container ID: {container_id} — polling status...")
+    logger.info(f"Container ID: {container_id} — polling (video takes ~30-90s)...")
 
-    # Step 3: Poll until FINISHED
-    for attempt in range(12):  # 12 × 5s = 60s max
-        time.sleep(5)
+    # Step 4: Poll until FINISHED (videos take longer than images)
+    for attempt in range(24):   # 24 × 10s = 4 min max
+        time.sleep(10)
         s = requests.get(
             f"https://graph.facebook.com/v19.0/{container_id}",
             params={"fields": "status_code", "access_token": INSTAGRAM_ACCESS_TOKEN},
-            timeout=10)
+            timeout=15)
         if s.status_code == 200:
-            code = s.json().get("status_code", "")
-            logger.info(f"  [{attempt+1}/12] {code}")
+            code = s.json().get("status_code", "UNKNOWN")
+            logger.info(f"  [{attempt+1}/24] status: {code}")
             if code == "FINISHED":
+                logger.info("✅ Video processed!")
                 break
             if code in ("ERROR", "EXPIRED"):
-                raise ValueError(f"Container failed: {s.json()}")
+                raise ValueError(f"Container failed with status: {s.json()}")
+        else:
+            logger.warning(f"  Poll HTTP {s.status_code}")
     else:
-        logger.warning("Status never FINISHED — publishing anyway")
+        raise ValueError("Video processing timed out after 4 minutes")
 
-    # Step 4: Publish
+    # Step 5: Publish
     r2 = requests.post(
         f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media_publish",
         data={"creation_id": container_id, "access_token": INSTAGRAM_ACCESS_TOKEN},
@@ -628,7 +691,7 @@ def post_to_instagram(image_path: str) -> str:
         raise ValueError(f"Reel publish failed: {r2.text}")
 
     post_id = r2.json()["id"]
-    logger.info(f"🎬 Posted as REEL | ID: {post_id}")
+    logger.info(f"🎬 REEL POSTED! ID: {post_id}")
     return post_id
 
 
@@ -747,6 +810,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
