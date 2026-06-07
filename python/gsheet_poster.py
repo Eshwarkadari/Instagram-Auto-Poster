@@ -467,94 +467,6 @@ def get_pinterest_image(original_url: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# IMAGE → REEL VIDEO CONVERSION
-# Converts Pinterest image to a 9:16 MP4 video for Instagram Reels.
-# Uses ffmpeg (pre-installed on GitHub Actions ubuntu-latest).
-# Process:
-#   1. Open image with Pillow
-#   2. Pad/crop to exactly 1080x1920 (9:16) with blurred background
-#   3. Convert to mp4 with ffmpeg (7 second static video)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def convert_image_to_reel_video(image_path: str) -> str:
-    """
-    Convert a still image to a 9:16 MP4 suitable for Instagram Reels.
-    Returns path to the mp4 file.
-    """
-    import subprocess
-    from PIL import Image, ImageFilter
-
-    TARGET_W, TARGET_H = 1080, 1920   # 9:16 — Instagram Reel resolution
-    DURATION = 7                       # seconds (Instagram Reels min = 3s)
-    OUTPUT = "/tmp/reel.mp4"
-
-    try:
-        img = Image.open(image_path).convert("RGB")
-        orig_w, orig_h = img.size
-        logger.info(f"Converting to Reel | source: {orig_w}x{orig_h} → {TARGET_W}x{TARGET_H}")
-
-        # Step 1: Create blurred background (fill full 9:16 canvas)
-        bg = img.copy()
-        bg = bg.resize((TARGET_W, TARGET_H), Image.LANCZOS)
-        bg = bg.filter(ImageFilter.GaussianBlur(radius=30))
-
-        # Step 2: Scale original image to fit within 9:16 (letterbox/pillarbox)
-        scale = min(TARGET_W / orig_w, TARGET_H / orig_h)
-        new_w = int(orig_w * scale)
-        new_h = int(orig_h * scale)
-        fg = img.resize((new_w, new_h), Image.LANCZOS)
-
-        # Step 3: Paste foreground centered on blurred background
-        x = (TARGET_W - new_w) // 2
-        y = (TARGET_H - new_h) // 2
-        bg.paste(fg, (x, y))
-
-        # Save composite frame
-        frame_path = "/tmp/reel_frame.jpg"
-        bg.save(frame_path, "JPEG", quality=95)
-        logger.info(f"✅ Composite frame: {TARGET_W}x{TARGET_H} | fg at ({x},{y}) size {new_w}x{new_h}")
-
-        # Step 4: Convert still frame → MP4 with ffmpeg
-        # -loop 1: loop the single image
-        # -t: duration in seconds
-        # -vf: scale to exact dimensions, ensure even pixels (required by h264)
-        # -pix_fmt yuv420p: required for Instagram compatibility
-        # -c:v libx264 -crf 23: good quality, small file
-        cmd = [
-            "ffmpeg", "-y",
-            "-loop", "1",
-            "-i", frame_path,
-            "-t", str(DURATION),
-            "-vf", f"scale={TARGET_W}:{TARGET_H}:force_original_aspect_ratio=decrease,"
-                   f"pad={TARGET_W}:{TARGET_H}:(ow-iw)/2:(oh-ih)/2,setsar=1",
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "23",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
-            "-r", "30",
-            OUTPUT
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if result.returncode != 0:
-            raise RuntimeError(f"ffmpeg failed: {result.stderr[-500:]}")
-
-        size = os.path.getsize(OUTPUT)
-        logger.info(f"✅ Reel video created: {size:,} bytes | {DURATION}s | {OUTPUT}")
-
-        # Instagram Reel video requirements check
-        if size > 100 * 1024 * 1024:   # 100MB max
-            raise ValueError(f"Video too large: {size:,} bytes (max 100MB)")
-        if size < 10000:
-            raise ValueError(f"Video suspiciously small: {size} bytes")
-
-        return OUTPUT
-
-    except Exception as e:
-        logger.error(f"Video conversion failed: {e}")
-        raise ValueError(f"Cannot convert image to Reel video: {e}")
-
 
 def download_image(image_url: str) -> str:
     """Download Pinterest image to /tmp/post.jpg. Tries multiple resolutions."""
@@ -587,8 +499,6 @@ def download_image(image_url: str) -> str:
                     size = os.path.getsize(path)
                     if size > 5000:
                         logger.info(f"✅ Downloaded {size:,} bytes | {url[:60]}")
-                        # Convert still image to 9:16 MP4 for Instagram Reels
-                        path = convert_image_to_reel_video(path)
                         return path
                     logger.warning(f"File too small: {size} bytes")
                 else:
@@ -662,83 +572,63 @@ def upload_to_cdn(image_path: str) -> str:
 # INSTAGRAM GRAPH API
 # ─────────────────────────────────────────────────────────────────────────────
 
-def post_to_instagram(video_path: str) -> str:
+def post_to_instagram(image_path: str) -> str:
     """
-    Post a video file as an Instagram REEL.
-
-    Instagram Reels API flow:
-      1. Upload video to a public URL (CDN)
-      2. POST to /media with media_type=REELS + video_url
-      3. Poll /media/{id}?fields=status_code until FINISHED
-      4. POST to /media_publish with creation_id
-
-    NOTE: video_path here is the local mp4 file path (not a URL).
-    upload_to_cdn() is called inside this function for the video.
+    Post a downloaded photo as an Instagram REEL.
+    No video conversion — Instagram accepts a photo URL with media_type=REELS.
+    Flow: upload photo to CDN → create REELS container → publish.
     """
-    logger.info(f"Creating IG REELS container | account={INSTAGRAM_ACCOUNT_ID}")
+    logger.info(f"Posting photo as REEL | account={INSTAGRAM_ACCOUNT_ID}")
 
-    # Step 1: Upload video to public CDN
-    logger.info("Uploading video to CDN for Instagram...")
-    video_url = upload_to_cdn(video_path)
-    logger.info(f"Video CDN URL: {video_url}")
+    # Step 1: Upload photo to public CDN
+    public_url = upload_to_cdn(image_path)
+    logger.info(f"CDN URL: {public_url}")
 
-    # Step 2: Create Reel container
+    # Step 2: Create REELS media container with image_url
     r = requests.post(
         f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media",
         data={
-            "video_url":    video_url,
-            "media_type":   "REELS",
-            "caption":      CAPTION,
-            "share_to_feed": "true",          # Show in main feed + Reels tab
-            "access_token": INSTAGRAM_ACCESS_TOKEN,
-        }, timeout=60)
-    logger.info(f"Container: HTTP {r.status_code} | {r.text[:400]}")
+            "image_url":     public_url,
+            "media_type":    "REELS",
+            "caption":       CAPTION,
+            "share_to_feed": "true",
+            "access_token":  INSTAGRAM_ACCESS_TOKEN,
+        }, timeout=30)
+    logger.info(f"Container: HTTP {r.status_code} | {r.text[:300]}")
     if r.status_code != 200:
-        raise ValueError(f"Reel container creation failed: {r.text}")
+        raise ValueError(f"Reel container failed: {r.text}")
 
     container_id = r.json()["id"]
-    logger.info(f"Container ID: {container_id}")
+    logger.info(f"Container ID: {container_id} — polling status...")
 
-    # Step 3: Poll until Instagram finishes processing the video
-    # Videos take longer than images — poll up to 5 minutes
-    logger.info("Polling container status (video processing takes ~30-120s)...")
-    for attempt in range(30):   # 30 × 10s = 5 minutes max
-        time.sleep(10)
-        status_r = requests.get(
+    # Step 3: Poll until FINISHED
+    for attempt in range(12):  # 12 × 5s = 60s max
+        time.sleep(5)
+        s = requests.get(
             f"https://graph.facebook.com/v19.0/{container_id}",
-            params={
-                "fields": "status_code,status",
-                "access_token": INSTAGRAM_ACCESS_TOKEN
-            }, timeout=15)
-
-        if status_r.status_code == 200:
-            data = status_r.json()
-            status_code = data.get("status_code", "UNKNOWN")
-            logger.info(f"  [{attempt+1}/30] status: {status_code}")
-
-            if status_code == "FINISHED":
-                logger.info("✅ Video processing complete!")
+            params={"fields": "status_code", "access_token": INSTAGRAM_ACCESS_TOKEN},
+            timeout=10)
+        if s.status_code == 200:
+            code = s.json().get("status_code", "")
+            logger.info(f"  [{attempt+1}/12] {code}")
+            if code == "FINISHED":
                 break
-            if status_code in ("ERROR", "EXPIRED"):
-                raise ValueError(f"Video processing failed: {data}")
-        else:
-            logger.warning(f"  Status poll HTTP {status_r.status_code}")
+            if code in ("ERROR", "EXPIRED"):
+                raise ValueError(f"Container failed: {s.json()}")
     else:
-        raise ValueError("Video processing timed out after 5 minutes")
+        logger.warning("Status never FINISHED — publishing anyway")
 
-    # Step 4: Publish Reel
+    # Step 4: Publish
     r2 = requests.post(
         f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media_publish",
-        data={
-            "creation_id":  container_id,
-            "access_token": INSTAGRAM_ACCESS_TOKEN,
-        }, timeout=30)
+        data={"creation_id": container_id, "access_token": INSTAGRAM_ACCESS_TOKEN},
+        timeout=30)
     logger.info(f"Publish: HTTP {r2.status_code} | {r2.text[:300]}")
     if r2.status_code != 200:
         raise ValueError(f"Reel publish failed: {r2.text}")
 
     post_id = r2.json()["id"]
-    logger.info(f"🎬 Published as REEL | ID: {post_id}")
+    logger.info(f"🎬 Posted as REEL | ID: {post_id}")
     return post_id
 
 
@@ -804,8 +694,8 @@ def main():
 
         try:
             image_url  = get_pinterest_image(pin_url)
-            video_path = download_image(image_url)  # returns mp4 after reel conversion
-            post_id    = post_to_instagram(video_path)  # uploads video + posts as Reel
+            img_path   = download_image(image_url)
+            post_id    = post_to_instagram(img_path)
 
             logger.info(f"🎉 SUCCESS! Instagram Post ID: {post_id}")
             mark_url_posted(pin_url)
@@ -857,5 +747,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
