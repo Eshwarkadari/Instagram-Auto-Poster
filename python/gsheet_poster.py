@@ -404,7 +404,10 @@ def get_pinterest_media(original_url: str) -> tuple:
         raise ValueError("Cannot extract pin ID from: " + original_url)
     logger.info("Working | pin_id=" + pin_id + " | url=" + clean_url)
 
-    # Method 1: oEmbed
+    # Method 1: oEmbed + HTML video detection
+    # Pinterest returns type="rich" for video pins (NOT "video")
+    # We MUST check HTML to know if it's actually a video pin
+    oembed_thumbnail = None
     for try_url in list(dict.fromkeys([original_url, clean_url])):
         try:
             r = requests.get(
@@ -415,18 +418,48 @@ def get_pinterest_media(original_url: str) -> tuple:
                 oe_type = data.get("type", "")
                 oe_html = data.get("html", "")
                 if oe_type == "video" or ".mp4" in oe_html:
-                    mp4 = re.search(r"src=['\"]([^'\"]+\.mp4[^'\"]*)['\"]", oe_html)
+                    mp4 = re.search(r"src=.([^ >]+\.mp4[^ >]*)", oe_html)
                     if mp4:
-                        logger.info("✅ Method 1 oEmbed VIDEO: " + mp4.group(1)[:80])
+                        logger.info("✅ Method 1 oEmbed VIDEO mp4: " + mp4.group(1)[:80])
                         return mp4.group(1), True
                 img = data.get("thumbnail_url", "")
                 for res in ["236x", "474x", "736x"]:
                     img = img.replace("/" + res + "/", "/originals/")
                 if img and "pinimg.com" in img:
-                    logger.info("✅ Method 1 oEmbed IMAGE: " + img[:80])
-                    return img, False
+                    oembed_thumbnail = img
+                break
         except Exception as e:
             logger.warning("oEmbed: " + str(e))
+
+    # Fetch HTML once — check for video signals AND try to get actual media URL
+    html = fetch_html(clean_url)
+    u_html, v_html = extract_media_from_html(html)
+    if u_html and u_html.endswith(".mp4"):
+        logger.info("✅ HTML VIDEO mp4: " + u_html[:80])
+        return u_html, True
+    if u_html and not v_html and oembed_thumbnail:
+        # HTML found an image URL — but check for video signals in raw HTML
+        pass  # fall through to video signal check below
+
+    # Check raw HTML for video pin signals (even when no mp4 URL found)
+    is_video_pin = any(sig in html for sig in [
+        '"type":"video"', '"media_type":"video"', '"is_video":true',
+        '"isVideo":true', 'VideoObject', '"videos":{', '"video_url"',
+        'og:video', 'v.pinimg.com', 'video/mp4',
+    ])
+
+    if oembed_thumbnail:
+        if is_video_pin:
+            logger.info("⚠️ Video pin detected — thumbnail will be converted to mp4 for Reel")
+            return oembed_thumbnail, True
+        else:
+            logger.info("✅ Image pin — posting as photo: " + oembed_thumbnail[:80])
+            return oembed_thumbnail, False
+
+    # If HTML found image and no video signals
+    if u_html:
+        logger.info("✅ HTML " + ("VIDEO" if v_html else "IMAGE") + ": " + u_html[:80])
+        return u_html, v_html
 
     # Method 2: PinResource API
     try:
@@ -736,8 +769,8 @@ def post_as_reel(video_path: str) -> str:
 def post_to_instagram(media_path: str, is_video: bool) -> str:
     """
     Smart router:
-    - is_video=False → post as PHOTO (image_url)
-    - is_video=True  → post as REEL (video_url) — no conversion, post directly
+    - is_video=False: post as PHOTO (image_url)
+    - is_video=True:  post as REEL (video_url) — no conversion, post directly
     """
     if is_video:
         return post_as_reel(media_path)
@@ -748,6 +781,45 @@ def post_to_instagram(media_path: str, is_video: bool) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 # TELEGRAM
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+def jpg_to_mp4(image_path: str) -> str:
+    """Convert jpg thumbnail to 7s mp4 for Reel upload when only thumbnail available."""
+    import subprocess, shutil
+    output = "/tmp/reel.mp4"
+    ffmpeg = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
+    if not os.path.exists(ffmpeg):
+        raise ValueError("ffmpeg not found — add 'sudo apt-get install -y ffmpeg' to yml")
+    r = subprocess.run([
+        ffmpeg, "-y", "-loop", "1", "-i", image_path, "-t", "7",
+        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,"
+               "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", "30", "-an",
+        output
+    ], capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        raise ValueError("ffmpeg failed: " + r.stderr[-400:])
+    size = os.path.getsize(output)
+    logger.info("✅ jpg->mp4: " + str(size) + " bytes")
+    return output
+
+
+def post_to_instagram(media_path: str, is_video: bool) -> str:
+    """
+    Smart router:
+    - is_video=False: post as PHOTO
+    - is_video=True:  post as REEL
+      .mp4 file -> post directly as Reel
+      .jpg file (video pin thumbnail) -> convert to mp4 first, then post as Reel
+    """
+    if is_video:
+        if not media_path.endswith(".mp4"):
+            logger.info("Video pin with jpg thumbnail — converting to mp4 for Reel...")
+            media_path = jpg_to_mp4(media_path)
+        return post_as_reel(media_path)
+    else:
+        return post_as_photo(media_path)
 
 def send_telegram(msg: str):
     if not TELEGRAM_BOT_TOKEN:
@@ -861,6 +933,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
