@@ -3,14 +3,15 @@ gsheet_poster.py - Pinterest → Instagram Auto Poster
 v7 IMPROVED - Enhanced production reliability
   ✅ Resolves pin.it shortlinks (GitHub Actions IPs can do this)
   ✅ Extracts pin ID from ANY URL variant (/sent/, /repin/, /invite/)
-  ✅ 6 image extraction methods with proper fallbacks
+  ✅ 5 media extraction methods with proper fallbacks
   ✅ 4 HTML proxy fallbacks for Pinterest blocking
   ✅ Skips bad URLs and tries next PENDING automatically
   ✅ CDN upload with 3 fallbacks
   ✅ Full Telegram notifications
-  ✅ Improved ffmpeg error handling with fallback to static thumbnail
+  ✅ Improved ffmpeg error handling with graceful fallback to photo
   ✅ Retry logic for Google Sheet status updates
-  ✅ Removed duplicate post_to_instagram() definition
+  ✅ Safe error handling in all API calls
+  ✅ Removed duplicate function definitions
 Author: Kadari Eshwar (@styleformenindia)
 """
 
@@ -673,7 +674,12 @@ def upload_to_cdn(file_path: str) -> str:
             url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{gh_fname}"
             logger.info(f"✅ CDN GitHub raw: {url}")
             return url
-        logger.warning(f"GitHub raw: HTTP {r.status_code} | {r.json().get('message','')}")
+        # Safe error handling — only call .json() if response has JSON
+        try:
+            err_msg = r.json().get('message', '')
+        except:
+            err_msg = r.text[:100]
+        logger.warning(f"GitHub raw: HTTP {r.status_code} | {err_msg}")
     except Exception as e:
         logger.warning(f"GitHub raw: {e}")
 
@@ -784,7 +790,7 @@ def post_as_reel(video_path: str) -> str:
 def jpg_to_mp4(image_path: str) -> str:
     """
     Convert jpg thumbnail to 7s mp4 for Reel upload when only thumbnail available.
-    Falls back to posting as photo if ffmpeg is unavailable.
+    Raises ValueError with specific error code if ffmpeg unavailable/fails.
     """
     import subprocess, shutil
     output = "/tmp/reel.mp4"
@@ -805,20 +811,25 @@ def jpg_to_mp4(image_path: str) -> str:
         ], capture_output=True, text=True, timeout=120)
         
         if r.returncode != 0:
-            logger.warning(f"ffmpeg conversion failed: {r.stderr[-400:]}")
+            logger.warning(f"⚠️ ffmpeg conversion failed: {r.stderr[-400:]}")
             raise ValueError("ffmpeg_conversion_failed")
         
         size = os.path.getsize(output)
         if size < 5000:
-            logger.warning(f"ffmpeg output too small ({size}b), falling back to photo")
+            logger.warning(f"⚠️ ffmpeg output too small ({size}b), falling back to photo")
             raise ValueError("ffmpeg_output_too_small")
         
         logger.info("✅ jpg->mp4: " + str(size) + " bytes")
         return output
     
     except subprocess.TimeoutExpired:
-        logger.warning("ffmpeg conversion timed out — will post as photo")
+        logger.warning("⚠️ ffmpeg conversion timed out — will post as photo")
         raise ValueError("ffmpeg_timeout")
+    except ValueError:
+        raise
+    except Exception as e:
+        logger.warning(f"⚠️ ffmpeg error: {e}")
+        raise ValueError("ffmpeg_error")
 
 
 def post_to_instagram(media_path: str, is_video: bool) -> str:
@@ -831,14 +842,14 @@ def post_to_instagram(media_path: str, is_video: bool) -> str:
     """
     if is_video:
         if not media_path.endswith(".mp4"):
-            logger.info("Video pin with jpg thumbnail — attempting mp4 conversion for Reel...")
+            logger.info("🎥 Video pin with jpg thumbnail — attempting mp4 conversion for Reel...")
             try:
                 media_path = jpg_to_mp4(media_path)
                 return post_as_reel(media_path)
             except ValueError as e:
                 err = str(e)
                 if "ffmpeg" in err.lower():
-                    logger.warning("ffmpeg unavailable — posting video pin as static photo instead")
+                    logger.warning("⚠️ ffmpeg unavailable — posting video pin as static photo instead")
                     return post_as_photo(media_path)
                 raise
         return post_as_reel(media_path)
