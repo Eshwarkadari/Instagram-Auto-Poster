@@ -11,7 +11,7 @@ v6 FINAL - Production ready
 Author: Kadari Eshwar (@styleformenindia)
 """
 
-import os, re, time, logging, csv, io, random, json, urllib.parse, subprocess, shutil
+import os, re, time, logging, csv, io, random, json, urllib.parse
 import requests
 import base64
 
@@ -636,54 +636,6 @@ def upload_to_cdn(file_path: str) -> str:
 # INSTAGRAM GRAPH API
 # ─────────────────────────────────────────────────────────────────────────────
 
-def image_to_video(image_path: str) -> str:
-    """
-    Convert JPG image → 9:16 MP4 for Instagram Reels.
-    Uses ffmpeg. Output: 1080x1920, 7s, h264.
-    """
-    output = "/tmp/reel.mp4"
-    ffmpeg_bin = shutil.which("ffmpeg")
-    for candidate in ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"]:
-        if not ffmpeg_bin and os.path.exists(candidate):
-            ffmpeg_bin = candidate
-    if not ffmpeg_bin:
-        raise ValueError("ffmpeg not found! Ensure 'sudo apt-get install -y ffmpeg' runs in workflow.")
-    logger.info(f"✅ ffmpeg: {ffmpeg_bin}")
-
-    # Pad image to 9:16 with blurred background
-    padded = "/tmp/reel_frame.jpg"
-    r1 = subprocess.run([
-        ffmpeg_bin, "-y", "-i", image_path, "-vf",
-        "split[bg][fg];"
-        "[bg]scale=1080:1920:force_original_aspect_ratio=increase,"
-        "crop=1080:1920,boxblur=20:20[blurred];"
-        "[fg]scale=1080:1920:force_original_aspect_ratio=decrease[sharp];"
-        "[blurred][sharp]overlay=(W-w)/2:(H-h)/2",
-        "-frames:v", "1", "-q:v", "2", padded
-    ], capture_output=True, text=True, timeout=60)
-    if r1.returncode != 0 or not os.path.exists(padded):
-        logger.warning("Blur pad failed — using original")
-        padded = image_path
-
-    # Still image → 7-second MP4
-    r2 = subprocess.run([
-        ffmpeg_bin, "-y", "-loop", "1", "-i", padded, "-t", "7",
-        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,"
-               "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", "30", "-an",
-        output
-    ], capture_output=True, text=True, timeout=120)
-    if r2.returncode != 0:
-        raise ValueError(f"ffmpeg failed: {r2.stderr[-500:]}")
-
-    size = os.path.getsize(output)
-    logger.info(f"✅ MP4: {size:,} bytes | 7s | 1080x1920")
-    if size < 10000:
-        raise ValueError(f"MP4 too small ({size}b)")
-    return output
-
-
 def post_as_photo(image_path: str) -> str:
     """Upload JPG and post as Instagram PHOTO post."""
     logger.info("📸 Posting as PHOTO")
@@ -784,10 +736,8 @@ def post_as_reel(video_path: str) -> str:
 def post_to_instagram(media_path: str, is_video: bool) -> str:
     """
     Smart router:
-    - is_video=False → post as PHOTO
-    - is_video=True  → post as REEL (video already downloaded)
-    - image downloaded but Pinterest gave us .jpg → convert to video for Reel? NO.
-      Just post image as photo. If user pastes a video URL → post as Reel.
+    - is_video=False → post as PHOTO (image_url)
+    - is_video=True  → post as REEL (video_url) — no conversion, post directly
     """
     if is_video:
         return post_as_reel(media_path)
@@ -911,6 +861,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
