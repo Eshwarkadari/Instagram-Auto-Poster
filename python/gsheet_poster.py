@@ -1,6 +1,6 @@
 """
 gsheet_poster.py - Pinterest → Instagram Auto Poster
-v6 FINAL - Production ready
+v7 IMPROVED - Enhanced production reliability
   ✅ Resolves pin.it shortlinks (GitHub Actions IPs can do this)
   ✅ Extracts pin ID from ANY URL variant (/sent/, /repin/, /invite/)
   ✅ 6 image extraction methods with proper fallbacks
@@ -8,6 +8,9 @@ v6 FINAL - Production ready
   ✅ Skips bad URLs and tries next PENDING automatically
   ✅ CDN upload with 3 fallbacks
   ✅ Full Telegram notifications
+  ✅ Improved ffmpeg error handling with fallback to static thumbnail
+  ✅ Retry logic for Google Sheet status updates
+  ✅ Removed duplicate post_to_instagram() definition
 Author: Kadari Eshwar (@styleformenindia)
 """
 
@@ -55,7 +58,7 @@ This look changes everything.
 💬 Comment "FIT" and I'll send you the details
 👔 Follow @styleformenindia — new fits daily
 
-#mensfashion #mensstyle #indianmensfashion #outfitoftheday #fashionreels #styleformen #menswear #ootd #outfitinspo #fashiontips #streetwear #casualstyle #swag #styleinspo #viralmenfashion #dappermen #fashionformen #outfitideas #mensfashionpost #reelsviral""",
+#mensfashion #mensstyle #indianmensfashion #outfitoftheday #fashionreels #styleformen #menswear #ootd #outfitinspo #fashiontips #streetwear #casualstyle #swag #styleinspo #viralmenfashion #dappermen #[...]
 
     """The outfit that will make people stop and stare 👀
 
@@ -65,7 +68,7 @@ No cap — this is the look you wear when you want to be remembered.
 💬 Comment "DETAILS" for outfit breakdown
 👔 Follow @styleformenindia for daily inspo
 
-#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #dapperstyle #classymen #gentlemanstyle #styleinspo #fashiontips #mensfashionblogger #reelsviral #viralreels #outfitinspiration #casualstyle #streetwear #trendingfashion""",
+#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #dapperstyle #classymen #gentlemanstyle #styleinspo #fashiontips #mensfashionblogger #reelsviral #vir[...]
 
     """Why do stylish men always look confident? 🤔
 
@@ -78,7 +81,7 @@ This is yours to steal. 💪
 💬 Drop "🔥" if this hits different
 👔 Follow @styleformenindia
 
-#mensfashion #confidence #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips #dapper #gentlemen #viralmenfashion #reelsviral #outfitideas #streetwear #casualstyle #swagstyle #trending""",
+#mensfashion #confidence #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips #dapper #gentlemen #viralmenfashion #reelsviral #outfitideas [...]
 
     """Nobody talks about how much a good outfit changes your life 💯
 
@@ -91,7 +94,7 @@ Start here. 👇
 💬 Comment "STYLE" for a full guide
 👔 Follow @styleformenindia — level up daily
 
-#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #fashiontips #styleinspo #dapperstyle #gentlemanstyle #reelsviral #viralreels #trending #outfitinspiration #casualstyle #streetwear #swag #mensfashionpost""",
+#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #fashiontips #styleinspo #dapperstyle #gentlemanstyle #reelsviral #viralreels #trending #outfitinspir[...]
 
     """This outfit goes HARD 🔥🔥🔥
 
@@ -102,7 +105,7 @@ If you don't — that's what @styleformenindia is for.
 💬 Tag someone who needs this
 👔 Follow for daily men's fashion that actually slaps
 
-#mensfashion #mensstyle #outfitoftheday #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitinspo #styleinspo #fashiontips #streetwear #casualstyle #reelsviral #viralreels #trending #trendingfashion #swagstyle #dapper #outfitideas""",
+#mensfashion #mensstyle #outfitoftheday #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitinspo #styleinspo #fashiontips #streetwear #casualstyle #reelsviral #viralreels #trending #[...]
 
     """Upgrade your wardrobe. Upgrade your life. 💎
 
@@ -115,7 +118,7 @@ This works. Trust.
 💬 Comment "LINK" for exact products
 👔 Follow @styleformenindia for more
 
-#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #outfitideas #ootd #styleinspo #fashiontips #dapperstyle #gentlemen #classymen #reelsviral #viralreels #trending #outfitinspiration #streetwear #casualstyle #swag""",
+#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #outfitideas #ootd #styleinspo #fashiontips #dapperstyle #gentlemen #classymen #reelsviral #viralreels #trending #outfit[...]
 
     """Men who dress well never go unnoticed 👑
 
@@ -129,7 +132,7 @@ This is your sign to stop dressing average.
 Save this. Share it. Live it.
 👔 Follow @styleformenindia
 
-#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #fashiontips #styleinspo #dapper #gentlemanstyle #classymen #reelsviral #viralreels #trending #outfitoftheday #streetwear #casualstyle #swagstyle""",
+#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #fashiontips #styleinspo #dapper #gentlemanstyle #classymen #reelsviral #viralreels #trending #outfit[...]
 
     """This is the fit that makes her double-tap 😮‍💨🔥
 
@@ -140,7 +143,7 @@ You need the RIGHT clothes.
 💬 Comment "FIT CHECK" and I'll break it down
 👔 Follow @styleformenindia — 3 fits posted daily
 
-#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips #streetwear #casualstyle #reelsviral #viralreels #trending #trendingfashion #outfitideas #swag #dapper #gentlemen""",
+#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips #streetwear #casualstyle #reelsviral #viralreels #trending #trendingfashi[...]
 ]
 
 def get_caption():
@@ -163,9 +166,9 @@ def browser_headers(referer="https://www.google.com/"):
     }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────[...]
 # GOOGLE SHEET — read PENDING URLs
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────[...]
 
 def get_sheet_rows():
     """Read queue from Google Sheet. Falls back to links.txt in repo."""
@@ -237,21 +240,33 @@ def mark_url_posted(pin_url: str):
         logger.warning(f"mark_url_posted: {e}")
 
 
-def update_sheet_status(pin_url: str):
-    """Mark URL as POSTED in Google Sheet via Apps Script."""
-    try:
-        WEBAPP_URL = ("https://script.google.com/macros/s/"
-                      "AKfycbwkvG2B_ewPkyt2nibNa61i1SOiPno3yj5ikMexuPE6yo3q6xVkuShqbFt9gj5htqgZ/exec")
-        r = requests.get(WEBAPP_URL, params={"url": pin_url}, timeout=20)
-        logger.info(f"Sheet status update: {r.text[:100]}")
-    except Exception as e:
-        logger.warning(f"Sheet status update: {e}")
+def update_sheet_status(pin_url: str, max_retries: int = 3):
+    """Mark URL as POSTED in Google Sheet via Apps Script — with retry logic."""
+    WEBAPP_URL = ("https://script.google.com/macros/s/"
+                  "AKfycbwkvG2B_ewPkyt2nibNa61i1SOiPno3yj5ikMexuPE6yo3q6xVkuShqbFt9gj5htqgZ/exec")
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            r = requests.get(WEBAPP_URL, params={"url": pin_url}, timeout=20)
+            if r.status_code == 200:
+                logger.info(f"✅ Sheet status updated: {r.text[:100]}")
+                return True
+            else:
+                logger.warning(f"Sheet status update HTTP {r.status_code} (attempt {attempt}/{max_retries})")
+        except Exception as e:
+            logger.warning(f"Sheet status update attempt {attempt}/{max_retries}: {e}")
+        
+        if attempt < max_retries:
+            time.sleep(5)  # Wait before retry
+    
+    logger.warning(f"Sheet status update failed after {max_retries} attempts")
+    return False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────[...]
 # PINTEREST URL CLEANING
 # Handles: pin.it/xxx, pinterest.com/pin/ID/, /pin/ID/sent/?invite_code=, etc.
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────[...]
 
 
 def get_clean_pin_url(original_url: str):
@@ -595,9 +610,9 @@ def download_media(media_url: str) -> tuple:
     raise ValueError(f"Cannot download media from: {media_url}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────[...]
 # CDN UPLOAD — 3 options, auto-fallback
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────[...]
 
 def upload_to_cdn(file_path: str) -> str:
     """
@@ -665,9 +680,9 @@ def upload_to_cdn(file_path: str) -> str:
     raise ValueError("All 3 CDN uploads failed!")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────[...]
 # INSTAGRAM GRAPH API
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────[...]
 
 def post_as_photo(image_path: str) -> str:
     """Upload JPG and post as Instagram PHOTO post."""
@@ -766,43 +781,44 @@ def post_as_reel(video_path: str) -> str:
     return post_id
 
 
-def post_to_instagram(media_path: str, is_video: bool) -> str:
-    """
-    Smart router:
-    - is_video=False: post as PHOTO (image_url)
-    - is_video=True:  post as REEL (video_url) — no conversion, post directly
-    """
-    if is_video:
-        return post_as_reel(media_path)
-    else:
-        return post_as_photo(media_path)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TELEGRAM
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 def jpg_to_mp4(image_path: str) -> str:
-    """Convert jpg thumbnail to 7s mp4 for Reel upload when only thumbnail available."""
+    """
+    Convert jpg thumbnail to 7s mp4 for Reel upload when only thumbnail available.
+    Falls back to posting as photo if ffmpeg is unavailable.
+    """
     import subprocess, shutil
     output = "/tmp/reel.mp4"
     ffmpeg = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
+    
     if not os.path.exists(ffmpeg):
-        raise ValueError("ffmpeg not found — add 'sudo apt-get install -y ffmpeg' to yml")
-    r = subprocess.run([
-        ffmpeg, "-y", "-loop", "1", "-i", image_path, "-t", "7",
-        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,"
-               "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", "30", "-an",
-        output
-    ], capture_output=True, text=True, timeout=120)
-    if r.returncode != 0:
-        raise ValueError("ffmpeg failed: " + r.stderr[-400:])
-    size = os.path.getsize(output)
-    logger.info("✅ jpg->mp4: " + str(size) + " bytes")
-    return output
+        logger.warning("⚠️ ffmpeg not found — will post as static photo instead")
+        raise ValueError("ffmpeg_unavailable")
+    
+    try:
+        r = subprocess.run([
+            ffmpeg, "-y", "-loop", "1", "-i", image_path, "-t", "7",
+            "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,"
+                   "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", "30", "-an",
+            output
+        ], capture_output=True, text=True, timeout=120)
+        
+        if r.returncode != 0:
+            logger.warning(f"ffmpeg conversion failed: {r.stderr[-400:]}")
+            raise ValueError("ffmpeg_conversion_failed")
+        
+        size = os.path.getsize(output)
+        if size < 5000:
+            logger.warning(f"ffmpeg output too small ({size}b), falling back to photo")
+            raise ValueError("ffmpeg_output_too_small")
+        
+        logger.info("✅ jpg->mp4: " + str(size) + " bytes")
+        return output
+    
+    except subprocess.TimeoutExpired:
+        logger.warning("ffmpeg conversion timed out — will post as photo")
+        raise ValueError("ffmpeg_timeout")
 
 
 def post_to_instagram(media_path: str, is_video: bool) -> str:
@@ -811,15 +827,29 @@ def post_to_instagram(media_path: str, is_video: bool) -> str:
     - is_video=False: post as PHOTO
     - is_video=True:  post as REEL
       .mp4 file -> post directly as Reel
-      .jpg file (video pin thumbnail) -> convert to mp4 first, then post as Reel
+      .jpg file (video pin thumbnail) -> try convert to mp4; fallback to photo if ffmpeg unavailable
     """
     if is_video:
         if not media_path.endswith(".mp4"):
-            logger.info("Video pin with jpg thumbnail — converting to mp4 for Reel...")
-            media_path = jpg_to_mp4(media_path)
+            logger.info("Video pin with jpg thumbnail — attempting mp4 conversion for Reel...")
+            try:
+                media_path = jpg_to_mp4(media_path)
+                return post_as_reel(media_path)
+            except ValueError as e:
+                err = str(e)
+                if "ffmpeg" in err.lower():
+                    logger.warning("ffmpeg unavailable — posting video pin as static photo instead")
+                    return post_as_photo(media_path)
+                raise
         return post_as_reel(media_path)
     else:
         return post_as_photo(media_path)
+
+
+# ──────────────────────────────────────────────────────────────────[...]
+# TELEGRAM
+# ──────────────────────────────────────────────────────────────────[...]
+
 
 def send_telegram(msg: str):
     if not TELEGRAM_BOT_TOKEN:
@@ -835,13 +865,13 @@ def send_telegram(msg: str):
         logger.warning(f"Telegram: {e}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────[...]
 # MAIN
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────[...]
 
 def main():
     logger.info("=" * 60)
-    logger.info("🚀 Pinterest → Instagram Auto Poster | v6 FINAL")
+    logger.info("🚀 Pinterest → Instagram Auto Poster | v7 IMPROVED")
     logger.info(f"   Account : {INSTAGRAM_ACCOUNT_ID}")
     logger.info(f"   Sheet   : {GOOGLE_SHEET_ID}")
     logger.info(f"   Repo    : {GITHUB_REPO}")
@@ -885,7 +915,7 @@ def main():
 
             logger.info(f"🎉 SUCCESS! Instagram Post ID: {post_id}")
             mark_url_posted(pin_url)
-            update_sheet_status(pin_url)
+            update_sheet_status(pin_url, max_retries=3)
 
             send_telegram(
                 f"✅ <b>Posted to Instagram!</b>\n\n"
@@ -899,7 +929,7 @@ def main():
         except ValueError as e:
             err = str(e)
             # Extraction failure = bad URL → skip silently and try next
-            if any(k in err for k in ["Cannot extract pin ID", "All 6 methods", "Cannot find pin"]):
+            if any(k in err for k in ["Cannot extract pin ID", "All 5 methods", "Cannot find pin"]):
                 skip_count += 1
                 logger.warning(f"⏭  Skipping (bad URL #{skip_count}): {err[:80]}")
                 continue
@@ -933,14 +963,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
