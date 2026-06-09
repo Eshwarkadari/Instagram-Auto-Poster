@@ -2,17 +2,17 @@ name: Instagram Auto Poster - Google Sheets
 
 on:
   schedule:
-    - cron: '0 3 * * *'     # 8:30 AM IST  — morning commute scroll
-    - cron: '30 6 * * *'    # 12:00 PM IST  — lunch break scroll
-    - cron: '30 9 * * *'    # 3:00 PM IST  — afternoon dip scroll
-    - cron: '0 13 * * *'    # 6:30 PM IST  — post-work peak
-    - cron: '30 15 * * *'   # 9:00 PM IST  — prime time — highest reach
+    - cron: '0 3 * * *'     # 8:30 AM IST
+    - cron: '30 6 * * *'    # 12:00 PM IST
+    - cron: '30 9 * * *'    # 3:00 PM IST
+    - cron: '0 13 * * *'    # 6:30 PM IST
+    - cron: '30 15 * * *'   # 9:00 PM IST
   workflow_dispatch:
 
 jobs:
   post-to-instagram:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repo
@@ -23,14 +23,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install ffmpeg
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y ffmpeg
-          ffmpeg -version | head -1
-
       - name: Install dependencies
-        run: pip install requests==2.31.0 Pillow==10.4.0
+        run: pip install requests==2.31.0
 
       - name: Run Instagram Auto Poster
         env:
