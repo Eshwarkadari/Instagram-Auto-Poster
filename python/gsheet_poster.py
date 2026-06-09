@@ -253,152 +253,131 @@ def update_sheet_status(pin_url: str):
 # Handles: pin.it/xxx, pinterest.com/pin/ID/, /pin/ID/sent/?invite_code=, etc.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_clean_pin_url(original_url: str):
-    """
-    Returns (clean_url, pin_id) or (None, None).
-    clean_url is always: https://www.pinterest.com/pin/{pin_id}/
-    Resolves pin.it shortlinks first, then extracts pin ID from ANY path.
-    """
-    url = original_url.strip()
 
-    # Resolve pin.it shortlinks (GitHub Actions IPs can do this)
+def get_clean_pin_url(original_url: str):
+    url = original_url.strip()
     if "pin.it" in url:
-        logger.info(f"Resolving shortlink: {url}")
+        logger.info("Resolving shortlink: " + url)
         for method in ("HEAD", "GET"):
             try:
                 fn = requests.head if method == "HEAD" else requests.get
                 r = fn(url, timeout=15, headers=browser_headers(), allow_redirects=True)
                 if "pinterest" in r.url:
                     url = r.url
-                    logger.info(f"  Resolved ({method}) → {url[:80]}")
+                    logger.info("  Resolved (" + method + ") → " + url[:80])
                     break
-                # Also check for Location header in non-follow HEAD
                 loc = r.headers.get("Location", "")
                 if loc and "pinterest" in loc:
                     url = loc
-                    logger.info(f"  Location header → {url[:80]}")
                     break
             except Exception as e:
-                logger.warning(f"  {method} resolve: {e}")
-
-    # Extract numeric pin ID from URL path
-    # Works for: /pin/123456/, /pin/123456/sent/, /pin/123456/?ref=...
+                logger.warning("  " + method + " resolve: " + str(e))
     m = re.search(r'/pin/(\d+)', url)
     if not m:
-        logger.error(f"Cannot find pin ID in: {url}")
+        logger.error("Cannot find pin ID in: " + url)
         return None, None
-
     pin_id = m.group(1)
-    clean_url = f"https://www.pinterest.com/pin/{pin_id}/"
-    logger.info(f"✅ Clean URL: {clean_url} (pin_id={pin_id})")
+    clean_url = "https://www.pinterest.com/pin/" + pin_id + "/"
+    logger.info("✅ Clean URL: " + clean_url + " (pin_id=" + pin_id + ")")
     return clean_url, pin_id
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# HTML FETCH — Direct + 4 proxy fallbacks
-# Pinterest blocks GitHub Actions IPs; proxies work around this
-# ─────────────────────────────────────────────────────────────────────────────
-
 def fetch_html(url: str) -> str:
-    """Fetch page HTML via direct request or proxies."""
-
-    # Direct request
     try:
-        r = requests.get(url, timeout=20, headers=browser_headers("https://www.google.com/"),
-                         allow_redirects=True)
+        r = requests.get(url, timeout=20, headers=browser_headers("https://www.google.com/"), allow_redirects=True)
         if r.status_code == 200 and len(r.text) > 500:
-            logger.info(f"✅ Direct fetch: {len(r.text):,} chars")
+            logger.info("✅ Direct fetch: " + str(len(r.text)) + " chars")
             return r.text
-        logger.warning(f"Direct: HTTP {r.status_code}, {len(r.text)} chars")
     except Exception as e:
-        logger.warning(f"Direct fetch: {e}")
+        logger.warning("Direct fetch: " + str(e))
 
     enc = urllib.parse.quote(url, safe="")
-
-    # Proxy 1: allorigins.win
-    try:
-        r = requests.get(f"https://api.allorigins.win/get?url={enc}",
-                         timeout=25, headers={"User-Agent": USER_AGENTS[0]})
-        if r.status_code == 200:
-            html = r.json().get("contents", "")
-            if len(html) > 500:
-                logger.info(f"✅ allorigins: {len(html):,} chars")
-                return html
-    except Exception as e:
-        logger.warning(f"allorigins: {e}")
-
-    # Proxy 2: corsproxy.io
-    try:
-        r = requests.get(f"https://corsproxy.io/?{enc}",
-                         timeout=25, headers=browser_headers())
-        if r.status_code == 200 and len(r.text) > 500:
-            logger.info(f"✅ corsproxy: {len(r.text):,} chars")
-            return r.text
-    except Exception as e:
-        logger.warning(f"corsproxy: {e}")
-
-    # Proxy 3: thingproxy
-    try:
-        r = requests.get(f"https://thingproxy.freeboard.io/fetch/{url}",
-                         timeout=25, headers={"User-Agent": USER_AGENTS[0]})
-        if r.status_code == 200 and len(r.text) > 500:
-            logger.info(f"✅ thingproxy: {len(r.text):,} chars")
-            return r.text
-    except Exception as e:
-        logger.warning(f"thingproxy: {e}")
-
-    # Proxy 4: codetabs
-    try:
-        r = requests.get(f"https://api.codetabs.com/v1/proxy?quest={enc}",
-                         timeout=25, headers={"User-Agent": USER_AGENTS[0]})
-        if r.status_code == 200 and len(r.text) > 500:
-            logger.info(f"✅ codetabs: {len(r.text):,} chars")
-            return r.text
-    except Exception as e:
-        logger.warning(f"codetabs: {e}")
-
-    logger.warning("All HTML fetch methods failed")
+    for name, proxy_url in [
+        ("allorigins", "https://api.allorigins.win/get?url=" + enc),
+        ("corsproxy",  "https://corsproxy.io/?" + enc),
+        ("thingproxy", "https://thingproxy.freeboard.io/fetch/" + url),
+        ("codetabs",   "https://api.codetabs.com/v1/proxy?quest=" + enc),
+    ]:
+        try:
+            r = requests.get(proxy_url, timeout=25, headers={"User-Agent": USER_AGENTS[0]})
+            if r.status_code == 200:
+                html = r.json().get("contents", "") if name == "allorigins" else r.text
+                if len(html) > 500:
+                    logger.info("✅ " + name + ": " + str(len(html)) + " chars")
+                    return html
+        except Exception as e:
+            logger.warning(name + ": " + str(e))
     return ""
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# IMAGE EXTRACTION FROM HTML
-# ─────────────────────────────────────────────────────────────────────────────
-
-def extract_image_from_html(html: str) -> str:
-    """Extract highest-quality Pinterest image URL from page HTML."""
+def extract_media_from_html(html: str) -> tuple:
+    """Returns (url, is_video). Checks video FIRST."""
     if not html:
-        return None
+        return None, False
 
-    patterns = [
-        # og:image — most reliable, always highest available resolution
-        r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
-        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
-        # CDN originals
-        r'"contentUrl"\s*:\s*"(https://i\.pinimg\.com/originals/[^"]+)"',
-        r'"url"\s*:\s*"(https://i\.pinimg\.com/originals/[^"]+)"',
-        r'(https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp))',
-        # 736x fallback
-        r'(https://i\.pinimg\.com/736x/[a-f0-9/]+\.(?:jpg|jpeg|png|webp))',
-        # 474x fallback
-        r'(https://i\.pinimg\.com/474x/[a-f0-9/]+\.(?:jpg|jpeg|png|webp))',
-        # Any pinimg
-        r'(https://i\.pinimg\.com/[^\s"\'<>\\]+\.(?:jpg|jpeg|png|webp))',
-    ]
+    # VIDEO: og:video meta tag
+    for pat in [
+        r'property=["\']og:video(?::url)?["\'][^>]+content=["\']([^"\']+)["\']',
+        r'content=["\']([^"\']+)["\'][^>]+property=["\']og:video(?::url)?["\']',
+    ]:
+        m = re.search(pat, html, re.I)
+        if m:
+            u = m.group(1).replace("&amp;", "&")
+            if u:
+                logger.info("✅ og:video: " + u[:80])
+                return u, True
 
-    for pat in patterns:
+    # VIDEO: v.pinimg.com CDN mp4
+    m = re.search(r'https://v\d*[.]pinimg[.]com/[^\s"\'<>\\]+[.]mp4[^\s"\'<>\\]*', html, re.I)
+    if m:
+        logger.info("✅ CDN video: " + m.group(0)[:80])
+        return m.group(0), True
+
+    # VIDEO: any mp4 URL in JSON
+    m = re.search(r'"video_url"\s*:\s*"(https://[^"]+[.]mp4[^"]*)"', html)
+    if m:
+        logger.info("✅ video_url JSON: " + m.group(1)[:80])
+        return m.group(1), True
+
+    # VIDEO: JSON-LD VideoObject
+    for block in re.findall(r'<script[^>]+type=["\']application/ld[+]json["\'][^>]*>([\s\S]*?)</script>', html, re.I):
+        try:
+            data = json.loads(block)
+            if data.get("@type") in ("VideoObject", "Video"):
+                u = data.get("contentUrl") or data.get("url", "")
+                if u:
+                    logger.info("✅ JSON-LD VideoObject: " + u[:80])
+                    return u, True
+        except Exception:
+            pass
+
+    # IMAGE: og:image
+    for pat in [
+        r'property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+        r'content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
+    ]:
         m = re.search(pat, html, re.I)
         if m:
             img = m.group(1).replace("&amp;", "&")
             if "pinimg.com" in img:
                 img = re.sub(r'/\d+x\d*/', '/originals/', img)
-                logger.info(f"✅ HTML extract: {img[:80]}")
-                return img
+                logger.info("✅ og:image: " + img[:80])
+                return img, False
 
-    # JSON-LD
-    for block in re.findall(
-            r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>([\s\S]*?)</script>',
-            html, re.I):
+    # IMAGE: CDN patterns
+    for pat in [
+        r'https://i[.]pinimg[.]com/originals/[a-f0-9/]+[.](jpg|jpeg|png|webp)',
+        r'https://i[.]pinimg[.]com/736x/[a-f0-9/]+[.](jpg|jpeg|png|webp)',
+        r'https://i[.]pinimg[.]com/[^\s"\'<>\\]+[.](jpg|jpeg|png|webp)',
+    ]:
+        m = re.search(pat, html, re.I)
+        if m:
+            img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
+            logger.info("✅ CDN image: " + img[:80])
+            return img, False
+
+    # IMAGE: JSON-LD
+    for block in re.findall(r'<script[^>]+type=["\']application/ld[+]json["\'][^>]*>([\s\S]*?)</script>', html, re.I):
         try:
             data = json.loads(block)
             imgs = data.get("image", [])
@@ -407,165 +386,116 @@ def extract_image_from_html(html: str) -> str:
             for img in (imgs if isinstance(imgs, list) else []):
                 if "pinimg.com" in str(img):
                     img = re.sub(r'/\d+x\d*/', '/originals/', str(img))
-                    logger.info(f"✅ JSON-LD: {img[:80]}")
-                    return img
+                    logger.info("✅ JSON-LD image: " + img[:80])
+                    return img, False
         except Exception:
             pass
 
-    return None
+    return None, False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MAIN IMAGE EXTRACTION — 6 methods
-# ─────────────────────────────────────────────────────────────────────────────
-
-def get_pinterest_image(original_url: str) -> str:
+def get_pinterest_media(original_url: str) -> tuple:
     """
-    Extract image URL from a Pinterest pin using 6 cascading methods.
-    Always cleans the URL first (handles pin.it, /sent/, /repin/, etc.)
+    Extract media URL from Pinterest pin.
+    Returns (url, is_video). Detects video pins correctly.
     """
-
-    # ── Step 0: Get clean canonical URL + pin ID ───────────────────────────
     clean_url, pin_id = get_clean_pin_url(original_url)
     if not clean_url or not pin_id:
-        raise ValueError(f"Cannot extract pin ID from: {original_url}")
-    logger.info(f"Working | pin_id={pin_id} | url={clean_url}")
+        raise ValueError("Cannot extract pin ID from: " + original_url)
+    logger.info("Working | pin_id=" + pin_id + " | url=" + clean_url)
 
-    # ── Method 1: oEmbed API ───────────────────────────────────────────────
-    # Try original URL first (pin.it sometimes works in oEmbed), then clean URL
+    # Method 1: oEmbed
     for try_url in list(dict.fromkeys([original_url, clean_url])):
         try:
             r = requests.get(
-                f"https://www.pinterest.com/oembed.json?url={urllib.parse.quote(try_url)}",
+                "https://www.pinterest.com/oembed.json?url=" + urllib.parse.quote(try_url),
                 timeout=12, headers=browser_headers("https://www.pinterest.com/"))
             if r.status_code == 200:
                 data = r.json()
+                oe_type = data.get("type", "")
+                oe_html = data.get("html", "")
+                if oe_type == "video" or ".mp4" in oe_html:
+                    mp4 = re.search(r"src=['\"]([^'\"]+\.mp4[^'\"]*)['\"]", oe_html)
+                    if mp4:
+                        logger.info("✅ Method 1 oEmbed VIDEO: " + mp4.group(1)[:80])
+                        return mp4.group(1), True
                 img = data.get("thumbnail_url", "")
-                # Upgrade resolution: replace 236x/474x/736x with originals
                 for res in ["236x", "474x", "736x"]:
-                    img = img.replace(f"/{res}/", "/originals/")
+                    img = img.replace("/" + res + "/", "/originals/")
                 if img and "pinimg.com" in img:
-                    logger.info(f"✅ Method 1 oEmbed: {img[:80]}")
-                    return img
-            else:
-                logger.warning(f"oEmbed HTTP {r.status_code} for {try_url[:50]}")
+                    logger.info("✅ Method 1 oEmbed IMAGE: " + img[:80])
+                    return img, False
         except Exception as e:
-            logger.warning(f"oEmbed ({try_url[:40]}): {e}")
+            logger.warning("oEmbed: " + str(e))
 
-    # ── Method 2: Pinterest internal PinResource API ───────────────────────
+    # Method 2: PinResource API
     try:
-        api_url = (
-            f"https://www.pinterest.com/resource/PinResource/get/"
-            f"?source_url=/pin/{pin_id}/"
-            f"&data=%7B%22options%22%3A%7B%22id%22%3A%22{pin_id}%22%7D%7D"
-        )
-        r = requests.get(api_url, timeout=12, headers={
-            **browser_headers("https://www.pinterest.com/"),
-            "X-Requested-With": "XMLHttpRequest",
-            "Accept": "application/json",
-        })
-        if r.status_code == 200:
-            # Search the entire JSON response for pinimg URLs
-            for pat in [
-                r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp)',
-                r'https://i\.pinimg\.com/736x/[a-f0-9/]+\.(?:jpg|jpeg|png|webp)',
-                r'https://i\.pinimg\.com/[^\s"\'\\]+\.(?:jpg|jpeg|png|webp)',
-            ]:
-                m = re.search(pat, r.text, re.I)
-                if m:
-                    img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
-                    logger.info(f"✅ Method 2 PinResource API: {img[:80]}")
-                    return img
-        logger.warning(f"PinResource API: HTTP {r.status_code}")
-    except Exception as e:
-        logger.warning(f"PinResource API: {e}")
-
-    # ── Method 3: Scrape clean pin page (direct + 4 proxies) ──────────────
-    html = fetch_html(clean_url)
-    img = extract_image_from_html(html)
-    if img:
-        logger.info(f"✅ Method 3 HTML scrape: {img[:80]}")
-        return img
-
-    # ── Method 4: Wayback Machine (archive.org) ────────────────────────────
-    try:
-        logger.info("Trying Wayback Machine...")
         r = requests.get(
-            f"https://archive.org/wayback/available?url=pinterest.com/pin/{pin_id}/",
+            "https://www.pinterest.com/resource/PinResource/get/"
+            "?source_url=/pin/" + pin_id + "/"
+            "&data=%7B%22options%22%3A%7B%22id%22%3A%22" + pin_id + "%22%7D%7D",
+            timeout=12, headers=dict(
+                list(browser_headers("https://www.pinterest.com/").items()) +
+                [("X-Requested-With", "XMLHttpRequest"), ("Accept", "application/json")]
+            ))
+        if r.status_code == 200:
+            raw = r.text
+            vm = re.search(r'v\d*[.]pinimg[.]com/[^\s"\'\\]+[.]mp4', raw, re.I)
+            if vm:
+                logger.info("✅ Method 2 API VIDEO: " + vm.group(0)[:80])
+                return vm.group(0), True
+            im = re.search(r'https://i[.]pinimg[.]com/originals/[a-f0-9/]+[.](jpg|jpeg|png|webp)', raw, re.I)
+            if im:
+                logger.info("✅ Method 2 API IMAGE: " + im.group(0)[:80])
+                return im.group(0), False
+    except Exception as e:
+        logger.warning("PinResource: " + str(e))
+
+    # Method 3: HTML scrape
+    html = fetch_html(clean_url)
+    u3, v3 = extract_media_from_html(html)
+    if u3:
+        logger.info("✅ Method 3 HTML: " + ("VIDEO" if v3 else "IMAGE") + " " + u3[:80])
+        return u3, v3
+
+    # Method 4: Wayback
+    try:
+        r = requests.get(
+            "https://archive.org/wayback/available?url=pinterest.com/pin/" + pin_id + "/",
             timeout=15, headers={"User-Agent": USER_AGENTS[0]})
         if r.status_code == 200:
             snap = r.json().get("archived_snapshots", {}).get("closest", {})
             if snap.get("available") and snap.get("url"):
-                logger.info(f"Wayback snapshot: {snap['url']}")
                 html2 = fetch_html(snap["url"])
-                img = extract_image_from_html(html2)
-                if img:
-                    logger.info(f"✅ Method 4 Wayback: {img[:80]}")
-                    return img
+                u4, v4 = extract_media_from_html(html2)
+                if u4:
+                    logger.info("✅ Method 4 Wayback: " + ("VIDEO" if v4 else "IMAGE"))
+                    return u4, v4
     except Exception as e:
-        logger.warning(f"Wayback: {e}")
+        logger.warning("Wayback: " + str(e))
 
-    # ── Method 5: Pinterest mobile/pidget API ──────────────────────────────
+    # Method 5: Mobile API
     try:
         r = requests.get(
-            f"https://api.pinterest.com/v3/pidgets/pins/info/?pin_ids={pin_id}",
+            "https://api.pinterest.com/v3/pidgets/pins/info/?pin_ids=" + pin_id,
             timeout=12, headers={
                 "User-Agent": "Pinterest/10.0 (iPhone; iOS 16.0; Scale/2.0)",
-                "Accept": "application/json",
-            })
+                "Accept": "application/json"})
         if r.status_code == 200:
-            for pat in [
-                r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp)',
-                r'https://i\.pinimg\.com/[^\s"\'\\]+\.(?:jpg|jpeg|png|webp)',
-            ]:
-                m = re.search(pat, r.text, re.I)
-                if m:
-                    img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
-                    logger.info(f"✅ Method 5 Mobile API: {img[:80]}")
-                    return img
-        logger.warning(f"Mobile API: HTTP {r.status_code}")
+            raw = r.text
+            vm = re.search(r'v\d*[.]pinimg[.]com/[^\s"\'\\]+[.]mp4', raw, re.I)
+            if vm:
+                logger.info("✅ Method 5 Mobile VIDEO: " + vm.group(0)[:80])
+                return vm.group(0), True
+            im = re.search(r'https://i[.]pinimg[.]com/[^\s"\'\\]+[.](jpg|jpeg|png|webp)', raw, re.I)
+            if im:
+                img = re.sub(r'/\d+x\d*/', '/originals/', im.group(0))
+                logger.info("✅ Method 5 Mobile IMAGE: " + img[:80])
+                return img, False
     except Exception as e:
-        logger.warning(f"Mobile API: {e}")
+        logger.warning("Mobile API: " + str(e))
 
-    # ── Method 6: Pinterest GraphQL API ───────────────────────────────────
-    try:
-        payload = {
-            "options": {
-                "field_set_key": "unauth_react",
-                "id": pin_id,
-            },
-            "context": {}
-        }
-        r = requests.get(
-            "https://www.pinterest.com/resource/PinResource/get/",
-            params={"source_url": f"/pin/{pin_id}/",
-                    "data": json.dumps(payload),
-                    "_": str(int(time.time() * 1000))},
-            headers={
-                **browser_headers("https://www.pinterest.com/"),
-                "X-Pinterest-AppState": "active",
-                "X-Requested-With": "XMLHttpRequest",
-            },
-            timeout=15)
-        if r.status_code == 200:
-            m = re.search(
-                r'https://i\.pinimg\.com/[^\s"\'\\]+\.(?:jpg|jpeg|png|webp)',
-                r.text, re.I)
-            if m:
-                img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
-                logger.info(f"✅ Method 6 GraphQL: {img[:80]}")
-                return img
-        logger.warning(f"GraphQL: HTTP {r.status_code}")
-    except Exception as e:
-        logger.warning(f"GraphQL: {e}")
-
-    raise ValueError(f"All 6 methods exhausted | pin_id={pin_id} | url={original_url}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# IMAGE DOWNLOAD
-# ─────────────────────────────────────────────────────────────────────────────
-
+    raise ValueError("All 5 methods exhausted | pin_id=" + pin_id + " | url=" + original_url)
 
 
 def is_video_url(url: str) -> bool:
@@ -926,8 +856,9 @@ def main():
         logger.info(f"📌 Attempt {i}/{MAX_TRY}: {pin_url}")
 
         try:
-            image_url          = get_pinterest_image(pin_url)
-            media_path, is_vid = download_media(image_url)
+            media_url, is_vid_pin = get_pinterest_media(pin_url)
+            media_path, is_vid    = download_media(media_url)
+            is_vid = is_vid or is_vid_pin  # video if URL is video OR pin is video
             post_id            = post_to_instagram(media_path, is_vid)
 
             logger.info(f"🎉 SUCCESS! Instagram Post ID: {post_id}")
@@ -980,6 +911,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
