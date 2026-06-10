@@ -50,101 +50,106 @@ import random as _random
 # Rotating viral hook captions — each post gets a different one
 # Research-backed: pattern interrupt + desire + CTA = max saves & shares
 _CAPTIONS = [
-    """POV: You finally figured out how to dress 🔥
-
-Most guys dress basic their whole life.
-This look changes everything.
-
-✅ Save this before your friends steal it
-💬 Comment "FIT" and I'll send you the details
-👔 Follow @styleformenindia — new fits daily
-
-#mensfashion #mensstyle #indianmensfashion #outfitoftheday #fashionreels #styleformen #menswear #ootd #outfitinspo #fashiontips #streetwear #casualstyle #swag #styleinspo #viralmenfashion #dappermen #[...]
-
-    """The outfit that will make people stop and stare 👀
-
-No cap — this is the look you wear when you want to be remembered.
-
-📌 Save this for your next event
-💬 Comment "DETAILS" for outfit breakdown
-👔 Follow @styleformenindia for daily inspo
-
-#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #dapperstyle #classymen #gentlemanstyle #styleinspo #fashiontips #mensfashionblogger #reelsviral #vir[...]
-
-    """Why do stylish men always look confident? 🤔
-
-Because the right outfit isn't just clothes —
-it's armour. It's a statement. It's YOU.
-
-This is yours to steal. 💪
-
-📌 Save it. You'll thank me later.
-💬 Drop "🔥" if this hits different
-👔 Follow @styleformenindia
-
-#mensfashion #confidence #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips #dapper #gentlemen #viralmenfashion #reelsviral #outfitideas [...]
-
-    """Nobody talks about how much a good outfit changes your life 💯
-
-Job interviews. First dates. Walking into a room.
-The right fit = instant respect.
-
-Start here. 👇
-
-✅ Save this look
-💬 Comment "STYLE" for a full guide
-👔 Follow @styleformenindia — level up daily
-
-#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #fashiontips #styleinspo #dapperstyle #gentlemanstyle #reelsviral #viralreels #trending #outfitinspir[...]
-
-    """This outfit goes HARD 🔥🔥🔥
-
-If you know, you know.
-If you don't — that's what @styleformenindia is for.
-
-📌 Save before it's gone
-💬 Tag someone who needs this
-👔 Follow for daily men's fashion that actually slaps
-
-#mensfashion #mensstyle #outfitoftheday #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitinspo #styleinspo #fashiontips #streetwear #casualstyle #reelsviral #viralreels #trending #[...]
-
-    """Upgrade your wardrobe. Upgrade your life. 💎
-
-The difference between looking good and looking GREAT
-is knowing what works for YOU.
-
-This works. Trust.
-
-📌 Save this look for your next purchase
-💬 Comment "LINK" for exact products
-👔 Follow @styleformenindia for more
-
-#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #outfitideas #ootd #styleinspo #fashiontips #dapperstyle #gentlemen #classymen #reelsviral #viralreels #trending #outfit[...]
-
-    """Men who dress well never go unnoticed 👑
-
-This is your sign to stop dressing average.
-
-3 rules:
-✅ Fit matters more than brand
-✅ Colours that complement your skin
-✅ Accessories seal the deal
-
-Save this. Share it. Live it.
-👔 Follow @styleformenindia
-
-#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #fashiontips #styleinspo #dapper #gentlemanstyle #classymen #reelsviral #viralreels #trending #outfit[...]
-
-    """This is the fit that makes her double-tap 😮‍💨🔥
-
-You don't need expensive clothes.
-You need the RIGHT clothes.
-
-📌 Save this look before you forget
-💬 Comment "FIT CHECK" and I'll break it down
-👔 Follow @styleformenindia — 3 fits posted daily
-
-#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips #streetwear #casualstyle #reelsviral #viralreels #trending #trendingfashi[...]
+    (
+        "POV: You finally figured out how to dress \U0001f525\n\n"
+        "Most guys dress basic their whole life.\n"
+        "This look changes everything.\n\n"
+        "\u2705 Save this before your friends steal it\n"
+        "\U0001f4ac Comment \"FIT\" and I\'ll send you the details\n"
+        "\U0001f454 Follow @styleformenindia \u2014 new fits daily\n\n"
+        "#mensfashion #mensstyle #indianmensfashion #outfitoftheday #fashionreels "
+        "#styleformen #menswear #ootd #outfitinspo #fashiontips #streetwear "
+        "#casualstyle #swag #styleinspo #viralmenfashion #dappermen "
+        "#fashionformen #outfitideas #mensfashionpost #reelsviral"
+    ),
+    (
+        "The outfit that will make people stop and stare \U0001f440\n\n"
+        "No cap \u2014 this is the look you wear when you want to be remembered.\n\n"
+        "\U0001f4cc Save this for your next event\n"
+        "\U0001f4ac Comment \"DETAILS\" for outfit breakdown\n"
+        "\U0001f454 Follow @styleformenindia for daily inspo\n\n"
+        "#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels "
+        "#styleformen #menswear #ootd #dapperstyle #classymen #gentlemanstyle "
+        "#styleinspo #fashiontips #mensfashionblogger #reelsviral #viralreels "
+        "#outfitinspiration #streetwear #casualstyle #trendingfashion"
+    ),
+    (
+        "Why do stylish men always look confident? \U0001f914\n\n"
+        "Because the right outfit isn\'t just clothes \u2014\n"
+        "it\'s armour. It\'s a statement. It\'s YOU.\n\n"
+        "This is yours to steal. \U0001f4aa\n\n"
+        "\U0001f4cc Save it. You\'ll thank me later.\n"
+        "\U0001f4ac Drop \"\U0001f525\" if this hits different\n"
+        "\U0001f454 Follow @styleformenindia\n\n"
+        "#mensfashion #confidence #mensstyle #indianmensfashion #fashionreels "
+        "#styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips "
+        "#dapper #gentlemen #viralmenfashion #reelsviral #outfitideas "
+        "#streetwear #casualstyle #swagstyle #trending"
+    ),
+    (
+        "Nobody talks about how much a good outfit changes your life \U0001f4af\n\n"
+        "Job interviews. First dates. Walking into a room.\n"
+        "The right fit = instant respect.\n\n"
+        "Start here. \U0001f447\n\n"
+        "\u2705 Save this look\n"
+        "\U0001f4ac Comment \"STYLE\" for a full guide\n"
+        "\U0001f454 Follow @styleformenindia \u2014 level up daily\n\n"
+        "#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels "
+        "#styleformen #menswear #ootd #fashiontips #styleinspo #dapperstyle "
+        "#gentlemanstyle #reelsviral #viralreels #trending #outfitinspiration "
+        "#casualstyle #streetwear #swag #mensfashionpost"
+    ),
+    (
+        "This outfit goes HARD \U0001f525\U0001f525\U0001f525\n\n"
+        "If you know, you know.\n"
+        "If you don\'t \u2014 that\'s what @styleformenindia is for.\n\n"
+        "\U0001f4cc Save before it\'s gone\n"
+        "\U0001f4ac Tag someone who needs this\n"
+        "\U0001f454 Follow for daily men\'s fashion that actually slaps\n\n"
+        "#mensfashion #mensstyle #outfitoftheday #indianmensfashion #fashionreels "
+        "#styleformen #menswear #ootd #outfitinspo #styleinspo #fashiontips "
+        "#streetwear #casualstyle #reelsviral #viralreels #trending "
+        "#trendingfashion #swagstyle #dapper #outfitideas"
+    ),
+    (
+        "Upgrade your wardrobe. Upgrade your life. \U0001f48e\n\n"
+        "The difference between looking good and looking GREAT\n"
+        "is knowing what works for YOU.\n\n"
+        "This works. Trust.\n\n"
+        "\U0001f4cc Save this look for your next purchase\n"
+        "\U0001f4ac Comment \"LINK\" for exact products\n"
+        "\U0001f454 Follow @styleformenindia for more\n\n"
+        "#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen "
+        "#menswear #outfitideas #ootd #styleinspo #fashiontips #dapperstyle "
+        "#gentlemen #classymen #reelsviral #viralreels #trending "
+        "#outfitinspiration #streetwear #casualstyle #swag"
+    ),
+    (
+        "Men who dress well never go unnoticed \U0001f451\n\n"
+        "This is your sign to stop dressing average.\n\n"
+        "3 rules:\n"
+        "\u2705 Fit matters more than brand\n"
+        "\u2705 Colours that complement your skin\n"
+        "\u2705 Accessories seal the deal\n\n"
+        "Save this. Share it. Live it.\n"
+        "\U0001f454 Follow @styleformenindia\n\n"
+        "#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels "
+        "#styleformen #menswear #ootd #fashiontips #styleinspo #dapper "
+        "#gentlemanstyle #classymen #reelsviral #viralreels #trending "
+        "#outfitoftheday #streetwear #casualstyle #swagstyle"
+    ),
+    (
+        "This is the fit that makes her double-tap \U0001f62e\u200d\U0001f4a8\U0001f525\n\n"
+        "You don\'t need expensive clothes.\n"
+        "You need the RIGHT clothes.\n\n"
+        "\U0001f4cc Save this look before you forget\n"
+        "\U0001f4ac Comment \"FIT CHECK\" and I\'ll break it down\n"
+        "\U0001f454 Follow @styleformenindia \u2014 3 fits posted daily\n\n"
+        "#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen "
+        "#menswear #ootd #outfitoftheday #styleinspo #fashiontips #streetwear "
+        "#casualstyle #reelsviral #viralreels #trending #trendingfashion "
+        "#outfitideas #swag #dapper #gentlemen"
+    ),
 ]
 
 def get_caption():
@@ -327,85 +332,84 @@ def fetch_html(url: str) -> str:
 
 
 def extract_media_from_html(html: str) -> tuple:
-    """Returns (url, is_video). Checks video FIRST."""
+    # Returns (url, is_video). Handles escaped JSON and Pinterest script tags.
     if not html:
         return None, False
 
-    # VIDEO: og:video meta tag
-    for pat in [
-        r'property=["\']og:video(?::url)?["\'][^>]+content=["\']([^"\']+)["\']',
-        r'content=["\']([^"\']+)["\'][^>]+property=["\']og:video(?::url)?["\']',
-    ]:
-        m = re.search(pat, html, re.I)
+    # Unescape JSON slash encoding (Pinterest: https:\/\/i.pinimg.com\/)
+    hu = html.replace("\/", "/").replace("\u002F", "/")
+
+    # Parse __PWS_DATA__ / __NEXT_DATA__ embedded JSON state
+    for sid in ["__PWS_DATA__", "__NEXT_DATA__", "__REDUX_STATE__"]:
+        m = re.search(r'<script[^>]+id=["\']' + sid + r'["\'][^>]*>([\s\S]*?)</script>', html, re.I)
+        if m:
+            try:
+                ds = json.dumps(json.loads(m.group(1).strip()))
+                for vp in [r'"video_url"\s*:\s*"(https://[^"]+\.mp4[^"]*)"'
+                           ,r'"url"\s*:\s*"(https://v\d*\.pinimg\.com/[^"]+)"'
+                           ]:
+                    vm = re.search(vp, ds)
+                    if vm:
+                        logger.info("VIDEO " + sid + ": " + vm.group(1)[:80])
+                        return vm.group(1), True
+                for ip in [r'"url"\s*:\s*"(https://i\.pinimg\.com/originals/[^"]+)"'
+                           ,r'(https://i\.pinimg\.com/originals/[a-f0-9/]+\.(jpg|jpeg|png|webp))'
+                           ]:
+                    im = re.search(ip, ds)
+                    if im:
+                        logger.info("IMAGE " + sid + ": " + im.group(1)[:80])
+                        return im.group(1), False
+            except Exception as ex:
+                logger.warning("JSON " + sid + ": " + str(ex)[:50])
+
+    # og:video
+    for pat in [r'property=["\']og:video["\'][^>]+content=["\']([^"\']+)["\']'
+               ,r'content=["\']([^"\']+)["\'][^>]+property=["\']og:video["\']'
+               ]:
+        m = re.search(pat, hu, re.I)
         if m:
             u = m.group(1).replace("&amp;", "&")
             if u:
-                logger.info("✅ og:video: " + u[:80])
+                logger.info("og:video: " + u[:80])
                 return u, True
 
-    # VIDEO: v.pinimg.com CDN mp4
-    m = re.search(r'https://v\d*[.]pinimg[.]com/[^\s"\'<>\\]+[.]mp4[^\s"\'<>\\]*', html, re.I)
-    if m:
-        logger.info("✅ CDN video: " + m.group(0)[:80])
-        return m.group(0), True
+    # v.pinimg mp4
+    for h in [hu, html]:
+        m = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'<>\\]+\.mp4', h, re.I)
+        if m:
+            logger.info("v.pinimg mp4: " + m.group(0)[:80])
+            return m.group(0), True
 
-    # VIDEO: any mp4 URL in JSON
-    m = re.search(r'"video_url"\s*:\s*"(https://[^"]+[.]mp4[^"]*)"', html)
-    if m:
-        logger.info("✅ video_url JSON: " + m.group(1)[:80])
-        return m.group(1), True
+    # video_url in JSON
+    for h in [hu, html]:
+        m = re.search(r'"video_url"\s*:\s*"(https://[^"]+\.mp4[^"]*)"'  , h)
+        if m:
+            logger.info("video_url: " + m.group(1)[:80])
+            return m.group(1), True
 
-    # VIDEO: JSON-LD VideoObject
-    for block in re.findall(r'<script[^>]+type=["\']application/ld[+]json["\'][^>]*>([\s\S]*?)</script>', html, re.I):
-        try:
-            data = json.loads(block)
-            if data.get("@type") in ("VideoObject", "Video"):
-                u = data.get("contentUrl") or data.get("url", "")
-                if u:
-                    logger.info("✅ JSON-LD VideoObject: " + u[:80])
-                    return u, True
-        except Exception:
-            pass
-
-    # IMAGE: og:image
-    for pat in [
-        r'property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
-        r'content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
-    ]:
-        m = re.search(pat, html, re.I)
+    # og:image
+    for pat in [r'property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']'
+               ,r'content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']'
+               ]:
+        m = re.search(pat, hu, re.I)
         if m:
             img = m.group(1).replace("&amp;", "&")
             if "pinimg.com" in img:
                 img = re.sub(r'/\d+x\d*/', '/originals/', img)
-                logger.info("✅ og:image: " + img[:80])
+                logger.info("og:image: " + img[:80])
                 return img, False
 
-    # IMAGE: CDN patterns
-    for pat in [
-        r'https://i[.]pinimg[.]com/originals/[a-f0-9/]+[.](jpg|jpeg|png|webp)',
-        r'https://i[.]pinimg[.]com/736x/[a-f0-9/]+[.](jpg|jpeg|png|webp)',
-        r'https://i[.]pinimg[.]com/[^\s"\'<>\\]+[.](jpg|jpeg|png|webp)',
-    ]:
-        m = re.search(pat, html, re.I)
-        if m:
-            img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
-            logger.info("✅ CDN image: " + img[:80])
-            return img, False
-
-    # IMAGE: JSON-LD
-    for block in re.findall(r'<script[^>]+type=["\']application/ld[+]json["\'][^>]*>([\s\S]*?)</script>', html, re.I):
-        try:
-            data = json.loads(block)
-            imgs = data.get("image", [])
-            if isinstance(imgs, str):
-                imgs = [imgs]
-            for img in (imgs if isinstance(imgs, list) else []):
-                if "pinimg.com" in str(img):
-                    img = re.sub(r'/\d+x\d*/', '/originals/', str(img))
-                    logger.info("✅ JSON-LD image: " + img[:80])
-                    return img, False
-        except Exception:
-            pass
+    # CDN image
+    for h in [hu, html]:
+        for pat in [r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(jpg|jpeg|png|webp)'
+                   ,r'https://i\.pinimg\.com/736x/[a-f0-9/]+\.(jpg|jpeg|png|webp)'
+                   ,r'https://i\.pinimg\.com/[^\s"\'<>\\]+\.(jpg|jpeg|png|webp)'
+                   ]:
+            m = re.search(pat, h, re.I)
+            if m:
+                img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
+                logger.info("CDN image: " + img[:80])
+                return img, False
 
     return None, False
 
@@ -974,3 +978,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
