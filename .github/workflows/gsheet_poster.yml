@@ -32,8 +32,8 @@ jobs:
       - name: Install dependencies
         run: pip install requests==2.31.0
 
-      - name: Debug Pinterest HTML structure
-        run: python python/debug_pinterest.py https://www.pinterest.com/pin/1127940669175905650/
+      - name: Debug Pinterest (known pin)
+        run: python python/debug_pinterest.py 872361390330023115
 
       - name: Run Instagram Auto Poster
         env:
