@@ -332,40 +332,96 @@ def fetch_html(url: str) -> str:
 
 
 def extract_media_from_html(html: str) -> tuple:
-    # Returns (url, is_video). Handles escaped JSON and Pinterest script tags.
+    """
+    Extract Pinterest image/video URL from HTML.
+    Tries every possible pattern Pinterest uses across all their HTML formats.
+    """
     if not html:
         return None, False
 
-    # Unescape JSON slash encoding (Pinterest: https:\/\/i.pinimg.com\/)
-    hu = html.replace("\/", "/").replace("\u002F", "/")
+    # ── Step 1: Unescape JSON slash encoding ─────────────────────────────────
+    # Pinterest JSON has: "url":"https:\/\/i.pinimg.com\/"
+    hu = html.replace("\\/", "/").replace("\\u002F", "/")
 
-    # Parse __PWS_DATA__ / __NEXT_DATA__ embedded JSON state
-    for sid in ["__PWS_DATA__", "__NEXT_DATA__", "__REDUX_STATE__"]:
-        m = re.search(r'<script[^>]+id=["\']' + sid + r'["\'][^>]*>([\s\S]*?)</script>', html, re.I)
+    # ── Step 2: Find ALL script tag contents ─────────────────────────────────
+    # Pinterest puts data in various script formats
+    all_scripts = re.findall(r'<script[^>]*>([\s\S]*?)</script>', html, re.I)
+    logger.info("Script tags found: " + str(len(all_scripts)))
+
+    for i, script in enumerate(all_scripts):
+        if len(script) < 50:
+            continue
+        # Try to find JSON data in this script
+        # Pinterest uses: P.start.start({...}) or __PWS_DATA__={...} or window.__redux_state__={...}
+        json_candidates = []
+
+        # Pattern 1: P.start.start({...})
+        m = re.search(r'P\.start\.start\((.+)\)\s*;', script, re.S)
         if m:
+            json_candidates.append(("P.start", m.group(1)))
+
+        # Pattern 2: __PWS_DATA__ = {...} or __PWS_DATA__={...}
+        m = re.search(r'__PWS_DATA__\s*=\s*(\{[\s\S]+\})', script)
+        if m:
+            json_candidates.append(("__PWS_DATA__", m.group(1)))
+
+        # Pattern 3: window.__INITIAL_STATE__ = {...}
+        m = re.search(r'__INITIAL_STATE__\s*=\s*(\{[\s\S]+\})', script)
+        if m:
+            json_candidates.append(("__INITIAL_STATE__", m.group(1)))
+
+        # Pattern 4: entire script is JSON (id=__PWS_DATA__ etc)
+        stripped = script.strip()
+        if stripped.startswith("{") and stripped.endswith("}"):
+            json_candidates.append(("raw_json_" + str(i), stripped))
+
+        for label, raw in json_candidates:
             try:
-                ds = json.dumps(json.loads(m.group(1).strip()))
-                for vp in [r'"video_url"\s*:\s*"(https://[^"]+\.mp4[^"]*)"'
-                           ,r'"url"\s*:\s*"(https://v\d*\.pinimg\.com/[^"]+)"'
-                           ]:
+                data = json.loads(raw)
+                ds = json.dumps(data)
+
+                # Search for video URL
+                for vp in [
+                    r'"video_url"\s*:\s*"(https://[^"]+\.mp4[^"]*)"'  ,
+                    r'"url"\s*:\s*"(https://v\d*\.pinimg\.com/[^"]+)"'  ,
+                    r'"V_720P"[^}]*"url"\s*:\s*"([^"]+)"'  ,
+                    r'"V_480P"[^}]*"url"\s*:\s*"([^"]+)"'  ,
+                ]:
                     vm = re.search(vp, ds)
                     if vm:
-                        logger.info("VIDEO " + sid + ": " + vm.group(1)[:80])
-                        return vm.group(1), True
-                for ip in [r'"url"\s*:\s*"(https://i\.pinimg\.com/originals/[^"]+)"'
-                           ,r'(https://i\.pinimg\.com/originals/[a-f0-9/]+\.(jpg|jpeg|png|webp))'
-                           ]:
+                        url = vm.group(1)
+                        logger.info("VIDEO " + label + ": " + url[:80])
+                        return url, True
+
+                # Search for image URL
+                for ip in [
+                    r'"orig"\s*:\s*\{[^}]*"url"\s*:\s*"(https://i\.pinimg\.com/originals/[^"]+)"'  ,
+                    r'"url"\s*:\s*"(https://i\.pinimg\.com/originals/[^"]+)"'  ,
+                    r'(https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp))'  ,
+                ]:
                     im = re.search(ip, ds)
                     if im:
-                        logger.info("IMAGE " + sid + ": " + im.group(1)[:80])
-                        return im.group(1), False
-            except Exception as ex:
-                logger.warning("JSON " + sid + ": " + str(ex)[:50])
+                        url = im.group(1)
+                        logger.info("IMAGE " + label + ": " + url[:80])
+                        return url, False
 
-    # og:video
-    for pat in [r'property=["\']og:video["\'][^>]+content=["\']([^"\']+)["\']'
-               ,r'content=["\']([^"\']+)["\'][^>]+property=["\']og:video["\']'
-               ]:
+            except Exception:
+                # Not valid JSON, try raw regex on script content
+                script_u = script.replace("\\/", "/")
+                vm = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'<>\\]+\.mp4', script_u, re.I)
+                if vm:
+                    logger.info("VIDEO raw script: " + vm.group(0)[:80])
+                    return vm.group(0), True
+                im = re.search(r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp)', script_u, re.I)
+                if im:
+                    logger.info("IMAGE raw script: " + im.group(0)[:80])
+                    return im.group(0), False
+
+    # ── Step 3: og:video / og:image meta tags ─────────────────────────────────
+    for pat in [
+        r'property=["\'"]og:video["\'"][^>]+content=["\'"]([^"\']+)["\'"]'  ,
+        r'content=["\'"]([^"\']+)["\'"][^>]+property=["\'"]og:video["\'"]'  ,
+    ]:
         m = re.search(pat, hu, re.I)
         if m:
             u = m.group(1).replace("&amp;", "&")
@@ -373,24 +429,10 @@ def extract_media_from_html(html: str) -> tuple:
                 logger.info("og:video: " + u[:80])
                 return u, True
 
-    # v.pinimg mp4
-    for h in [hu, html]:
-        m = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'<>\\]+\.mp4', h, re.I)
-        if m:
-            logger.info("v.pinimg mp4: " + m.group(0)[:80])
-            return m.group(0), True
-
-    # video_url in JSON
-    for h in [hu, html]:
-        m = re.search(r'"video_url"\s*:\s*"(https://[^"]+\.mp4[^"]*)"'  , h)
-        if m:
-            logger.info("video_url: " + m.group(1)[:80])
-            return m.group(1), True
-
-    # og:image
-    for pat in [r'property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']'
-               ,r'content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']'
-               ]:
+    for pat in [
+        r'property=["\'"]og:image["\'"][^>]+content=["\'"]([^"\']+)["\'"]'  ,
+        r'content=["\'"]([^"\']+)["\'"][^>]+property=["\'"]og:image["\'"]'  ,
+    ]:
         m = re.search(pat, hu, re.I)
         if m:
             img = m.group(1).replace("&amp;", "&")
@@ -399,18 +441,26 @@ def extract_media_from_html(html: str) -> tuple:
                 logger.info("og:image: " + img[:80])
                 return img, False
 
-    # CDN image
+    # ── Step 4: Raw search entire HTML (escaped + unescaped) ──────────────────
     for h in [hu, html]:
-        for pat in [r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(jpg|jpeg|png|webp)'
-                   ,r'https://i\.pinimg\.com/736x/[a-f0-9/]+\.(jpg|jpeg|png|webp)'
-                   ,r'https://i\.pinimg\.com/[^\s"\'<>\\]+\.(jpg|jpeg|png|webp)'
-                   ]:
-            m = re.search(pat, h, re.I)
-            if m:
-                img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
-                logger.info("CDN image: " + img[:80])
-                return img, False
+        # Video
+        m = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'<>\\]+\.mp4', h, re.I)
+        if m:
+            logger.info("raw v.pinimg: " + m.group(0)[:80])
+            return m.group(0), True
+        # Image originals
+        m = re.search(r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp)', h, re.I)
+        if m:
+            logger.info("raw originals: " + m.group(0)[:80])
+            return m.group(0), False
+        # Image any resolution
+        m = re.search(r'https://i\.pinimg\.com/[^\s"\'<>\\]+\.(?:jpg|jpeg|png|webp)', h, re.I)
+        if m:
+            img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
+            logger.info("raw pinimg: " + img[:80])
+            return img, False
 
+    logger.warning("extract_media_from_html: nothing found in " + str(len(html)) + " chars")
     return None, False
 
 
@@ -978,4 +1028,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
