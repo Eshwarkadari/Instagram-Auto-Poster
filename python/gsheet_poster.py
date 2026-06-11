@@ -1,17 +1,13 @@
 """
 gsheet_poster.py - Pinterest → Instagram Auto Poster
-v7 IMPROVED - Enhanced production reliability
+v6 FINAL - Production ready
   ✅ Resolves pin.it shortlinks (GitHub Actions IPs can do this)
   ✅ Extracts pin ID from ANY URL variant (/sent/, /repin/, /invite/)
-  ✅ 5 media extraction methods with proper fallbacks
+  ✅ 6 image extraction methods with proper fallbacks
   ✅ 4 HTML proxy fallbacks for Pinterest blocking
   ✅ Skips bad URLs and tries next PENDING automatically
   ✅ CDN upload with 3 fallbacks
   ✅ Full Telegram notifications
-  ✅ Improved ffmpeg error handling with graceful fallback to photo
-  ✅ Retry logic for Google Sheet status updates
-  ✅ Safe error handling in all API calls
-  ✅ Removed duplicate function definitions
 Author: Kadari Eshwar (@styleformenindia)
 """
 
@@ -50,106 +46,101 @@ import random as _random
 # Rotating viral hook captions — each post gets a different one
 # Research-backed: pattern interrupt + desire + CTA = max saves & shares
 _CAPTIONS = [
-    (
-        "POV: You finally figured out how to dress \U0001f525\n\n"
-        "Most guys dress basic their whole life.\n"
-        "This look changes everything.\n\n"
-        "\u2705 Save this before your friends steal it\n"
-        "\U0001f4ac Comment \"FIT\" and I\'ll send you the details\n"
-        "\U0001f454 Follow @styleformenindia \u2014 new fits daily\n\n"
-        "#mensfashion #mensstyle #indianmensfashion #outfitoftheday #fashionreels "
-        "#styleformen #menswear #ootd #outfitinspo #fashiontips #streetwear "
-        "#casualstyle #swag #styleinspo #viralmenfashion #dappermen "
-        "#fashionformen #outfitideas #mensfashionpost #reelsviral"
-    ),
-    (
-        "The outfit that will make people stop and stare \U0001f440\n\n"
-        "No cap \u2014 this is the look you wear when you want to be remembered.\n\n"
-        "\U0001f4cc Save this for your next event\n"
-        "\U0001f4ac Comment \"DETAILS\" for outfit breakdown\n"
-        "\U0001f454 Follow @styleformenindia for daily inspo\n\n"
-        "#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels "
-        "#styleformen #menswear #ootd #dapperstyle #classymen #gentlemanstyle "
-        "#styleinspo #fashiontips #mensfashionblogger #reelsviral #viralreels "
-        "#outfitinspiration #streetwear #casualstyle #trendingfashion"
-    ),
-    (
-        "Why do stylish men always look confident? \U0001f914\n\n"
-        "Because the right outfit isn\'t just clothes \u2014\n"
-        "it\'s armour. It\'s a statement. It\'s YOU.\n\n"
-        "This is yours to steal. \U0001f4aa\n\n"
-        "\U0001f4cc Save it. You\'ll thank me later.\n"
-        "\U0001f4ac Drop \"\U0001f525\" if this hits different\n"
-        "\U0001f454 Follow @styleformenindia\n\n"
-        "#mensfashion #confidence #mensstyle #indianmensfashion #fashionreels "
-        "#styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips "
-        "#dapper #gentlemen #viralmenfashion #reelsviral #outfitideas "
-        "#streetwear #casualstyle #swagstyle #trending"
-    ),
-    (
-        "Nobody talks about how much a good outfit changes your life \U0001f4af\n\n"
-        "Job interviews. First dates. Walking into a room.\n"
-        "The right fit = instant respect.\n\n"
-        "Start here. \U0001f447\n\n"
-        "\u2705 Save this look\n"
-        "\U0001f4ac Comment \"STYLE\" for a full guide\n"
-        "\U0001f454 Follow @styleformenindia \u2014 level up daily\n\n"
-        "#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels "
-        "#styleformen #menswear #ootd #fashiontips #styleinspo #dapperstyle "
-        "#gentlemanstyle #reelsviral #viralreels #trending #outfitinspiration "
-        "#casualstyle #streetwear #swag #mensfashionpost"
-    ),
-    (
-        "This outfit goes HARD \U0001f525\U0001f525\U0001f525\n\n"
-        "If you know, you know.\n"
-        "If you don\'t \u2014 that\'s what @styleformenindia is for.\n\n"
-        "\U0001f4cc Save before it\'s gone\n"
-        "\U0001f4ac Tag someone who needs this\n"
-        "\U0001f454 Follow for daily men\'s fashion that actually slaps\n\n"
-        "#mensfashion #mensstyle #outfitoftheday #indianmensfashion #fashionreels "
-        "#styleformen #menswear #ootd #outfitinspo #styleinspo #fashiontips "
-        "#streetwear #casualstyle #reelsviral #viralreels #trending "
-        "#trendingfashion #swagstyle #dapper #outfitideas"
-    ),
-    (
-        "Upgrade your wardrobe. Upgrade your life. \U0001f48e\n\n"
-        "The difference between looking good and looking GREAT\n"
-        "is knowing what works for YOU.\n\n"
-        "This works. Trust.\n\n"
-        "\U0001f4cc Save this look for your next purchase\n"
-        "\U0001f4ac Comment \"LINK\" for exact products\n"
-        "\U0001f454 Follow @styleformenindia for more\n\n"
-        "#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen "
-        "#menswear #outfitideas #ootd #styleinspo #fashiontips #dapperstyle "
-        "#gentlemen #classymen #reelsviral #viralreels #trending "
-        "#outfitinspiration #streetwear #casualstyle #swag"
-    ),
-    (
-        "Men who dress well never go unnoticed \U0001f451\n\n"
-        "This is your sign to stop dressing average.\n\n"
-        "3 rules:\n"
-        "\u2705 Fit matters more than brand\n"
-        "\u2705 Colours that complement your skin\n"
-        "\u2705 Accessories seal the deal\n\n"
-        "Save this. Share it. Live it.\n"
-        "\U0001f454 Follow @styleformenindia\n\n"
-        "#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels "
-        "#styleformen #menswear #ootd #fashiontips #styleinspo #dapper "
-        "#gentlemanstyle #classymen #reelsviral #viralreels #trending "
-        "#outfitoftheday #streetwear #casualstyle #swagstyle"
-    ),
-    (
-        "This is the fit that makes her double-tap \U0001f62e\u200d\U0001f4a8\U0001f525\n\n"
-        "You don\'t need expensive clothes.\n"
-        "You need the RIGHT clothes.\n\n"
-        "\U0001f4cc Save this look before you forget\n"
-        "\U0001f4ac Comment \"FIT CHECK\" and I\'ll break it down\n"
-        "\U0001f454 Follow @styleformenindia \u2014 3 fits posted daily\n\n"
-        "#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen "
-        "#menswear #ootd #outfitoftheday #styleinspo #fashiontips #streetwear "
-        "#casualstyle #reelsviral #viralreels #trending #trendingfashion "
-        "#outfitideas #swag #dapper #gentlemen"
-    ),
+    """POV: You finally figured out how to dress 🔥
+
+Most guys dress basic their whole life.
+This look changes everything.
+
+✅ Save this before your friends steal it
+💬 Comment "FIT" and I'll send you the details
+👔 Follow @styleformenindia — new fits daily
+
+#mensfashion #mensstyle #indianmensfashion #outfitoftheday #fashionreels #styleformen #menswear #ootd #outfitinspo #fashiontips #streetwear #casualstyle #swag #styleinspo #viralmenfashion #dappermen #fashionformen #outfitideas #mensfashionpost #reelsviral""",
+
+    """The outfit that will make people stop and stare 👀
+
+No cap — this is the look you wear when you want to be remembered.
+
+📌 Save this for your next event
+💬 Comment "DETAILS" for outfit breakdown
+👔 Follow @styleformenindia for daily inspo
+
+#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #dapperstyle #classymen #gentlemanstyle #styleinspo #fashiontips #mensfashionblogger #reelsviral #viralreels #outfitinspiration #casualstyle #streetwear #trendingfashion""",
+
+    """Why do stylish men always look confident? 🤔
+
+Because the right outfit isn't just clothes —
+it's armour. It's a statement. It's YOU.
+
+This is yours to steal. 💪
+
+📌 Save it. You'll thank me later.
+💬 Drop "🔥" if this hits different
+👔 Follow @styleformenindia
+
+#mensfashion #confidence #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips #dapper #gentlemen #viralmenfashion #reelsviral #outfitideas #streetwear #casualstyle #swagstyle #trending""",
+
+    """Nobody talks about how much a good outfit changes your life 💯
+
+Job interviews. First dates. Walking into a room.
+The right fit = instant respect.
+
+Start here. 👇
+
+✅ Save this look
+💬 Comment "STYLE" for a full guide
+👔 Follow @styleformenindia — level up daily
+
+#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #fashiontips #styleinspo #dapperstyle #gentlemanstyle #reelsviral #viralreels #trending #outfitinspiration #casualstyle #streetwear #swag #mensfashionpost""",
+
+    """This outfit goes HARD 🔥🔥🔥
+
+If you know, you know.
+If you don't — that's what @styleformenindia is for.
+
+📌 Save before it's gone
+💬 Tag someone who needs this
+👔 Follow for daily men's fashion that actually slaps
+
+#mensfashion #mensstyle #outfitoftheday #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitinspo #styleinspo #fashiontips #streetwear #casualstyle #reelsviral #viralreels #trending #trendingfashion #swagstyle #dapper #outfitideas""",
+
+    """Upgrade your wardrobe. Upgrade your life. 💎
+
+The difference between looking good and looking GREAT
+is knowing what works for YOU.
+
+This works. Trust.
+
+📌 Save this look for your next purchase
+💬 Comment "LINK" for exact products
+👔 Follow @styleformenindia for more
+
+#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #outfitideas #ootd #styleinspo #fashiontips #dapperstyle #gentlemen #classymen #reelsviral #viralreels #trending #outfitinspiration #streetwear #casualstyle #swag""",
+
+    """Men who dress well never go unnoticed 👑
+
+This is your sign to stop dressing average.
+
+3 rules:
+✅ Fit matters more than brand
+✅ Colours that complement your skin
+✅ Accessories seal the deal
+
+Save this. Share it. Live it.
+👔 Follow @styleformenindia
+
+#mensfashion #mensstyle #outfitideas #indianmensfashion #fashionreels #styleformen #menswear #ootd #fashiontips #styleinspo #dapper #gentlemanstyle #classymen #reelsviral #viralreels #trending #outfitoftheday #streetwear #casualstyle #swagstyle""",
+
+    """This is the fit that makes her double-tap 😮‍💨🔥
+
+You don't need expensive clothes.
+You need the RIGHT clothes.
+
+📌 Save this look before you forget
+💬 Comment "FIT CHECK" and I'll break it down
+👔 Follow @styleformenindia — 3 fits posted daily
+
+#mensfashion #mensstyle #indianmensfashion #fashionreels #styleformen #menswear #ootd #outfitoftheday #styleinspo #fashiontips #streetwear #casualstyle #reelsviral #viralreels #trending #trendingfashion #outfitideas #swag #dapper #gentlemen""",
 ]
 
 def get_caption():
@@ -172,9 +163,9 @@ def browser_headers(referer="https://www.google.com/"):
     }
 
 
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 # GOOGLE SHEET — read PENDING URLs
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 
 def get_sheet_rows():
     """Read queue from Google Sheet. Falls back to links.txt in repo."""
@@ -246,33 +237,21 @@ def mark_url_posted(pin_url: str):
         logger.warning(f"mark_url_posted: {e}")
 
 
-def update_sheet_status(pin_url: str, max_retries: int = 3):
-    """Mark URL as POSTED in Google Sheet via Apps Script — with retry logic."""
-    WEBAPP_URL = ("https://script.google.com/macros/s/"
-                  "AKfycbwkvG2B_ewPkyt2nibNa61i1SOiPno3yj5ikMexuPE6yo3q6xVkuShqbFt9gj5htqgZ/exec")
-    
-    for attempt in range(1, max_retries + 1):
-        try:
-            r = requests.get(WEBAPP_URL, params={"url": pin_url}, timeout=20)
-            if r.status_code == 200:
-                logger.info(f"✅ Sheet status updated: {r.text[:100]}")
-                return True
-            else:
-                logger.warning(f"Sheet status update HTTP {r.status_code} (attempt {attempt}/{max_retries})")
-        except Exception as e:
-            logger.warning(f"Sheet status update attempt {attempt}/{max_retries}: {e}")
-        
-        if attempt < max_retries:
-            time.sleep(5)  # Wait before retry
-    
-    logger.warning(f"Sheet status update failed after {max_retries} attempts")
-    return False
+def update_sheet_status(pin_url: str):
+    """Mark URL as POSTED in Google Sheet via Apps Script."""
+    try:
+        WEBAPP_URL = ("https://script.google.com/macros/s/"
+                      "AKfycbwkvG2B_ewPkyt2nibNa61i1SOiPno3yj5ikMexuPE6yo3q6xVkuShqbFt9gj5htqgZ/exec")
+        r = requests.get(WEBAPP_URL, params={"url": pin_url}, timeout=20)
+        logger.info(f"Sheet status update: {r.text[:100]}")
+    except Exception as e:
+        logger.warning(f"Sheet status update: {e}")
 
 
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 # PINTEREST URL CLEANING
 # Handles: pin.it/xxx, pinterest.com/pin/ID/, /pin/ID/sent/?invite_code=, etc.
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def get_clean_pin_url(original_url: str):
@@ -332,271 +311,231 @@ def fetch_html(url: str) -> str:
 
 
 def extract_media_from_html(html: str) -> tuple:
-    """
-    Extract Pinterest image/video URL from HTML.
-    Tries every possible pattern Pinterest uses across all their HTML formats.
-    """
+    """Returns (url, is_video). Checks video FIRST."""
     if not html:
         return None, False
 
-    # ── Step 1: Unescape JSON slash encoding ─────────────────────────────────
-    # Pinterest JSON has: "url":"https:\/\/i.pinimg.com\/"
-    hu = html.replace("\\/", "/").replace("\\u002F", "/")
-
-    # ── Step 2: Find ALL script tag contents ─────────────────────────────────
-    # Pinterest puts data in various script formats
-    all_scripts = re.findall(r'<script[^>]*>([\s\S]*?)</script>', html, re.I)
-    logger.info("Script tags found: " + str(len(all_scripts)))
-
-    for i, script in enumerate(all_scripts):
-        if len(script) < 50:
-            continue
-        # Try to find JSON data in this script
-        # Pinterest uses: P.start.start({...}) or __PWS_DATA__={...} or window.__redux_state__={...}
-        json_candidates = []
-
-        # Pattern 1: P.start.start({...})
-        m = re.search(r'P\.start\.start\((.+)\)\s*;', script, re.S)
-        if m:
-            json_candidates.append(("P.start", m.group(1)))
-
-        # Pattern 2: __PWS_DATA__ = {...} or __PWS_DATA__={...}
-        m = re.search(r'__PWS_DATA__\s*=\s*(\{[\s\S]+\})', script)
-        if m:
-            json_candidates.append(("__PWS_DATA__", m.group(1)))
-
-        # Pattern 3: window.__INITIAL_STATE__ = {...}
-        m = re.search(r'__INITIAL_STATE__\s*=\s*(\{[\s\S]+\})', script)
-        if m:
-            json_candidates.append(("__INITIAL_STATE__", m.group(1)))
-
-        # Pattern 4: entire script is JSON (id=__PWS_DATA__ etc)
-        stripped = script.strip()
-        if stripped.startswith("{") and stripped.endswith("}"):
-            json_candidates.append(("raw_json_" + str(i), stripped))
-
-        for label, raw in json_candidates:
-            try:
-                data = json.loads(raw)
-                ds = json.dumps(data)
-
-                # Search for video URL
-                for vp in [
-                    r'"video_url"\s*:\s*"(https://[^"]+\.mp4[^"]*)"'  ,
-                    r'"url"\s*:\s*"(https://v\d*\.pinimg\.com/[^"]+)"'  ,
-                    r'"V_720P"[^}]*"url"\s*:\s*"([^"]+)"'  ,
-                    r'"V_480P"[^}]*"url"\s*:\s*"([^"]+)"'  ,
-                ]:
-                    vm = re.search(vp, ds)
-                    if vm:
-                        url = vm.group(1)
-                        logger.info("VIDEO " + label + ": " + url[:80])
-                        return url, True
-
-                # Search for image URL
-                for ip in [
-                    r'"orig"\s*:\s*\{[^}]*"url"\s*:\s*"(https://i\.pinimg\.com/originals/[^"]+)"'  ,
-                    r'"url"\s*:\s*"(https://i\.pinimg\.com/originals/[^"]+)"'  ,
-                    r'(https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp))'  ,
-                ]:
-                    im = re.search(ip, ds)
-                    if im:
-                        url = im.group(1)
-                        logger.info("IMAGE " + label + ": " + url[:80])
-                        return url, False
-
-            except Exception:
-                # Not valid JSON, try raw regex on script content
-                script_u = script.replace("\\/", "/")
-                vm = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'<>\\]+\.mp4', script_u, re.I)
-                if vm:
-                    logger.info("VIDEO raw script: " + vm.group(0)[:80])
-                    return vm.group(0), True
-                im = re.search(r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp)', script_u, re.I)
-                if im:
-                    logger.info("IMAGE raw script: " + im.group(0)[:80])
-                    return im.group(0), False
-
-    # ── Step 3: og:video / og:image meta tags ─────────────────────────────────
+    # VIDEO: og:video meta tag
     for pat in [
-        r'property=["\'"]og:video["\'"][^>]+content=["\'"]([^"\']+)["\'"]'  ,
-        r'content=["\'"]([^"\']+)["\'"][^>]+property=["\'"]og:video["\'"]'  ,
+        r'property=["\']og:video(?::url)?["\'][^>]+content=["\']([^"\']+)["\']',
+        r'content=["\']([^"\']+)["\'][^>]+property=["\']og:video(?::url)?["\']',
     ]:
-        m = re.search(pat, hu, re.I)
+        m = re.search(pat, html, re.I)
         if m:
             u = m.group(1).replace("&amp;", "&")
             if u:
-                logger.info("og:video: " + u[:80])
+                logger.info("✅ og:video: " + u[:80])
                 return u, True
 
+    # VIDEO: v.pinimg.com CDN mp4
+    m = re.search(r'https://v\d*[.]pinimg[.]com/[^\s"\'<>\\]+[.]mp4[^\s"\'<>\\]*', html, re.I)
+    if m:
+        logger.info("✅ CDN video: " + m.group(0)[:80])
+        return m.group(0), True
+
+    # VIDEO: any mp4 URL in JSON
+    m = re.search(r'"video_url"\s*:\s*"(https://[^"]+[.]mp4[^"]*)"', html)
+    if m:
+        logger.info("✅ video_url JSON: " + m.group(1)[:80])
+        return m.group(1), True
+
+    # VIDEO: JSON-LD VideoObject
+    for block in re.findall(r'<script[^>]+type=["\']application/ld[+]json["\'][^>]*>([\s\S]*?)</script>', html, re.I):
+        try:
+            data = json.loads(block)
+            if data.get("@type") in ("VideoObject", "Video"):
+                u = data.get("contentUrl") or data.get("url", "")
+                if u:
+                    logger.info("✅ JSON-LD VideoObject: " + u[:80])
+                    return u, True
+        except Exception:
+            pass
+
+    # IMAGE: og:image
     for pat in [
-        r'property=["\'"]og:image["\'"][^>]+content=["\'"]([^"\']+)["\'"]'  ,
-        r'content=["\'"]([^"\']+)["\'"][^>]+property=["\'"]og:image["\'"]'  ,
+        r'property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+        r'content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
     ]:
-        m = re.search(pat, hu, re.I)
+        m = re.search(pat, html, re.I)
         if m:
             img = m.group(1).replace("&amp;", "&")
             if "pinimg.com" in img:
                 img = re.sub(r'/\d+x\d*/', '/originals/', img)
-                logger.info("og:image: " + img[:80])
+                logger.info("✅ og:image: " + img[:80])
                 return img, False
 
-    # ── Step 4: Raw search entire HTML (escaped + unescaped) ──────────────────
-    for h in [hu, html]:
-        # Video
-        m = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'<>\\]+\.mp4', h, re.I)
-        if m:
-            logger.info("raw v.pinimg: " + m.group(0)[:80])
-            return m.group(0), True
-        # Image originals
-        m = re.search(r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(?:jpg|jpeg|png|webp)', h, re.I)
-        if m:
-            logger.info("raw originals: " + m.group(0)[:80])
-            return m.group(0), False
-        # Image any resolution
-        m = re.search(r'https://i\.pinimg\.com/[^\s"\'<>\\]+\.(?:jpg|jpeg|png|webp)', h, re.I)
+    # IMAGE: CDN patterns
+    for pat in [
+        r'https://i[.]pinimg[.]com/originals/[a-f0-9/]+[.](jpg|jpeg|png|webp)',
+        r'https://i[.]pinimg[.]com/736x/[a-f0-9/]+[.](jpg|jpeg|png|webp)',
+        r'https://i[.]pinimg[.]com/[^\s"\'<>\\]+[.](jpg|jpeg|png|webp)',
+    ]:
+        m = re.search(pat, html, re.I)
         if m:
             img = re.sub(r'/\d+x\d*/', '/originals/', m.group(0))
-            logger.info("raw pinimg: " + img[:80])
+            logger.info("✅ CDN image: " + img[:80])
             return img, False
 
-    logger.warning("extract_media_from_html: nothing found in " + str(len(html)) + " chars")
+    # IMAGE: JSON-LD
+    for block in re.findall(r'<script[^>]+type=["\']application/ld[+]json["\'][^>]*>([\s\S]*?)</script>', html, re.I):
+        try:
+            data = json.loads(block)
+            imgs = data.get("image", [])
+            if isinstance(imgs, str):
+                imgs = [imgs]
+            for img in (imgs if isinstance(imgs, list) else []):
+                if "pinimg.com" in str(img):
+                    img = re.sub(r'/\d+x\d*/', '/originals/', str(img))
+                    logger.info("✅ JSON-LD image: " + img[:80])
+                    return img, False
+        except Exception:
+            pass
+
     return None, False
 
 
 def get_pinterest_media(original_url: str) -> tuple:
     """
-    Extract media URL from Pinterest pin.
-    Returns (url, is_video). Detects video pins correctly.
+    Extract media from Pinterest pin. Returns (url, is_video).
+    Pinterest serves empty JS shell to scrapers - HTML scraping removed.
+    oEmbed is the only reliable method from GitHub Actions.
     """
     clean_url, pin_id = get_clean_pin_url(original_url)
     if not clean_url or not pin_id:
         raise ValueError("Cannot extract pin ID from: " + original_url)
     logger.info("Working | pin_id=" + pin_id + " | url=" + clean_url)
 
-    # Method 1: oEmbed + HTML video detection
-    # Pinterest returns type="rich" for video pins (NOT "video")
-    # We MUST check HTML to know if it's actually a video pin
-    oembed_thumbnail = None
-    for try_url in list(dict.fromkeys([original_url, clean_url])):
-        try:
-            r = requests.get(
-                "https://www.pinterest.com/oembed.json?url=" + urllib.parse.quote(try_url),
-                timeout=12, headers=browser_headers("https://www.pinterest.com/"))
-            if r.status_code == 200:
-                data = r.json()
-                oe_type = data.get("type", "")
-                oe_html = data.get("html", "")
-                if oe_type == "video" or ".mp4" in oe_html:
-                    mp4 = re.search(r"src=.([^ >]+\.mp4[^ >]*)", oe_html)
-                    if mp4:
-                        logger.info("✅ Method 1 oEmbed VIDEO mp4: " + mp4.group(1)[:80])
-                        return mp4.group(1), True
-                img = data.get("thumbnail_url", "")
-                for res in ["236x", "474x", "736x"]:
-                    img = img.replace("/" + res + "/", "/originals/")
-                if img and "pinimg.com" in img:
-                    oembed_thumbnail = img
-                break
-        except Exception as e:
-            logger.warning("oEmbed: " + str(e))
-
-    # Fetch HTML once — check for video signals AND try to get actual media URL
-    html = fetch_html(clean_url)
-    u_html, v_html = extract_media_from_html(html)
-    if u_html and u_html.endswith(".mp4"):
-        logger.info("✅ HTML VIDEO mp4: " + u_html[:80])
-        return u_html, True
-    if u_html and not v_html and oembed_thumbnail:
-        # HTML found an image URL — but check for video signals in raw HTML
-        pass  # fall through to video signal check below
-
-    # Check raw HTML for video pin signals (even when no mp4 URL found)
-    is_video_pin = any(sig in html for sig in [
-        '"type":"video"', '"media_type":"video"', '"is_video":true',
-        '"isVideo":true', 'VideoObject', '"videos":{', '"video_url"',
-        'og:video', 'v.pinimg.com', 'video/mp4',
-    ])
-
-    if oembed_thumbnail:
-        if is_video_pin:
-            logger.info("⚠️ Video pin detected — thumbnail will be converted to mp4 for Reel")
-            return oembed_thumbnail, True
-        else:
-            logger.info("✅ Image pin — posting as photo: " + oembed_thumbnail[:80])
-            return oembed_thumbnail, False
-
-    # If HTML found image and no video signals
-    if u_html:
-        logger.info("✅ HTML " + ("VIDEO" if v_html else "IMAGE") + ": " + u_html[:80])
-        return u_html, v_html
+    # Method 1: oEmbed with multiple User-Agents
+    # This is the ONLY reliable method - GH Actions IPs can reach oEmbed
+    for try_url in [clean_url, original_url]:
+        for ua in [
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+            "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+            "Twitterbot/1.0",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+        ]:
+            try:
+                r = requests.get(
+                    "https://www.pinterest.com/oembed.json?url=" + urllib.parse.quote(try_url),
+                    timeout=15,
+                    headers={"User-Agent": ua, "Accept": "application/json, */*"})
+                logger.info("oEmbed HTTP " + str(r.status_code) + " ua=" + ua[:35])
+                if r.status_code == 200:
+                    data = r.json()
+                    oe_html = data.get("html", "")
+                    # Video check
+                    if data.get("type") == "video" or ".mp4" in oe_html:
+                        mp4 = re.search(r'src=[\'"]([^\'"]+\.mp4[^\'"]*)[\'"]', oe_html)
+                        if mp4:
+                            logger.info("oEmbed VIDEO: " + mp4.group(1)[:80])
+                            return mp4.group(1), True
+                    # Image thumbnail
+                    img = data.get("thumbnail_url", "")
+                    logger.info("oEmbed thumbnail: " + img[:80])
+                    for res in ["236x", "474x", "736x"]:
+                        img = img.replace("/" + res + "/", "/originals/")
+                    if img and "pinimg.com" in img:
+                        logger.info("oEmbed IMAGE OK: " + img[:80])
+                        return img, False
+                    else:
+                        logger.warning("oEmbed no thumbnail in response: " + str(data)[:150])
+                elif r.status_code != 403:
+                    logger.warning("oEmbed " + str(r.status_code) + ": " + r.text[:80])
+            except Exception as e:
+                logger.warning("oEmbed err [" + ua[:20] + "]: " + str(e)[:80])
 
     # Method 2: PinResource API
     try:
-        r = requests.get(
+        api_url = (
             "https://www.pinterest.com/resource/PinResource/get/"
             "?source_url=/pin/" + pin_id + "/"
-            "&data=%7B%22options%22%3A%7B%22id%22%3A%22" + pin_id + "%22%7D%7D",
-            timeout=12, headers=dict(
-                list(browser_headers("https://www.pinterest.com/").items()) +
-                [("X-Requested-With", "XMLHttpRequest"), ("Accept", "application/json")]
-            ))
-        if r.status_code == 200:
-            raw = r.text
-            vm = re.search(r'v\d*[.]pinimg[.]com/[^\s"\'\\]+[.]mp4', raw, re.I)
+            "&data=%7B%22options%22%3A%7B%22id%22%3A%22" + pin_id + "%22%7D%7D"
+        )
+        r = requests.get(api_url, timeout=12, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": "https://www.pinterest.com/",
+        })
+        logger.info("PinResource HTTP " + str(r.status_code) + " | " + str(len(r.text)) + " chars")
+        if r.status_code == 200 and len(r.text) > 100:
+            raw = r.text.replace("\\/", "/")
+            vm = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'\\<>]+\.mp4', raw, re.I)
             if vm:
-                logger.info("✅ Method 2 API VIDEO: " + vm.group(0)[:80])
+                logger.info("Method 2 VIDEO: " + vm.group(0)[:80])
                 return vm.group(0), True
-            im = re.search(r'https://i[.]pinimg[.]com/originals/[a-f0-9/]+[.](jpg|jpeg|png|webp)', raw, re.I)
+            im = re.search(r'https://i\.pinimg\.com/originals/[a-f0-9/]+\.(jpg|jpeg|png|webp)', raw, re.I)
             if im:
-                logger.info("✅ Method 2 API IMAGE: " + im.group(0)[:80])
+                logger.info("Method 2 IMAGE: " + im.group(0)[:80])
                 return im.group(0), False
     except Exception as e:
-        logger.warning("PinResource: " + str(e))
+        logger.warning("PinResource: " + str(e)[:60])
 
-    # Method 3: HTML scrape
-    html = fetch_html(clean_url)
-    u3, v3 = extract_media_from_html(html)
-    if u3:
-        logger.info("✅ Method 3 HTML: " + ("VIDEO" if v3 else "IMAGE") + " " + u3[:80])
-        return u3, v3
-
-    # Method 4: Wayback
+    # Method 3: Wayback Machine
     try:
         r = requests.get(
             "https://archive.org/wayback/available?url=pinterest.com/pin/" + pin_id + "/",
             timeout=15, headers={"User-Agent": USER_AGENTS[0]})
         if r.status_code == 200:
             snap = r.json().get("archived_snapshots", {}).get("closest", {})
+            logger.info("Wayback: available=" + str(snap.get("available")) + " url=" + snap.get("url", "")[:60])
             if snap.get("available") and snap.get("url"):
-                html2 = fetch_html(snap["url"])
-                u4, v4 = extract_media_from_html(html2)
-                if u4:
-                    logger.info("✅ Method 4 Wayback: " + ("VIDEO" if v4 else "IMAGE"))
-                    return u4, v4
+                r2 = requests.get(snap["url"], timeout=20, headers={"User-Agent": USER_AGENTS[0]})
+                if r2.status_code == 200:
+                    raw = r2.text.replace("\\/", "/")
+                    vm = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'\\<>]+\.mp4', raw, re.I)
+                    if vm:
+                        logger.info("Method 3 Wayback VIDEO: " + vm.group(0)[:80])
+                        return vm.group(0), True
+                    im = re.search(r'https://i\.pinimg\.com/[^\s"\'\\<>]+\.(jpg|jpeg|png|webp)', raw, re.I)
+                    if im:
+                        img = re.sub(r'/\d+x\d*/', '/originals/', im.group(0))
+                        logger.info("Method 3 Wayback IMAGE: " + img[:80])
+                        return img, False
     except Exception as e:
-        logger.warning("Wayback: " + str(e))
+        logger.warning("Wayback: " + str(e)[:60])
 
-    # Method 5: Mobile API
+    # Method 4: Mobile pidget API
     try:
         r = requests.get(
             "https://api.pinterest.com/v3/pidgets/pins/info/?pin_ids=" + pin_id,
             timeout=12, headers={
                 "User-Agent": "Pinterest/10.0 (iPhone; iOS 16.0; Scale/2.0)",
-                "Accept": "application/json"})
-        if r.status_code == 200:
-            raw = r.text
-            vm = re.search(r'v\d*[.]pinimg[.]com/[^\s"\'\\]+[.]mp4', raw, re.I)
+                "Accept": "application/json",
+            })
+        logger.info("Mobile API HTTP " + str(r.status_code) + " | " + str(len(r.text)) + " chars")
+        if r.status_code == 200 and len(r.text) > 100:
+            raw = r.text.replace("\\/", "/")
+            vm = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'\\<>]+\.mp4', raw, re.I)
             if vm:
-                logger.info("✅ Method 5 Mobile VIDEO: " + vm.group(0)[:80])
+                logger.info("Method 4 Mobile VIDEO: " + vm.group(0)[:80])
                 return vm.group(0), True
-            im = re.search(r'https://i[.]pinimg[.]com/[^\s"\'\\]+[.](jpg|jpeg|png|webp)', raw, re.I)
+            im = re.search(r'https://i\.pinimg\.com/[^\s"\'\\<>]+\.(jpg|jpeg|png|webp)', raw, re.I)
             if im:
                 img = re.sub(r'/\d+x\d*/', '/originals/', im.group(0))
-                logger.info("✅ Method 5 Mobile IMAGE: " + img[:80])
+                logger.info("Method 4 Mobile IMAGE: " + img[:80])
                 return img, False
     except Exception as e:
-        logger.warning("Mobile API: " + str(e))
+        logger.warning("Mobile API: " + str(e)[:60])
+
+    # Method 5: ia_archiver bot UA (Internet Archive crawler)
+    try:
+        r = requests.get(
+            "https://www.pinterest.com/pin/" + pin_id + "/",
+            timeout=15, headers={
+                "User-Agent": "ia_archiver",
+                "Accept": "text/html",
+            })
+        logger.info("ia_archiver HTTP " + str(r.status_code) + " | " + str(len(r.text)) + " chars")
+        if r.status_code == 200 and "pinimg.com" in r.text:
+            raw = r.text.replace("\\/", "/")
+            im = re.search(r'https://i\.pinimg\.com/[^\s"\'\\<>]+\.(jpg|jpeg|png|webp)', raw, re.I)
+            if im:
+                img = re.sub(r'/\d+x\d*/', '/originals/', im.group(0))
+                logger.info("Method 5 ia_archiver IMAGE: " + img[:80])
+                return img, False
+    except Exception as e:
+        logger.warning("ia_archiver: " + str(e)[:60])
 
     raise ValueError("All 5 methods exhausted | pin_id=" + pin_id + " | url=" + original_url)
 
@@ -665,9 +604,9 @@ def download_media(media_url: str) -> tuple:
     raise ValueError(f"Cannot download media from: {media_url}")
 
 
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 # CDN UPLOAD — 3 options, auto-fallback
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 
 def upload_to_cdn(file_path: str) -> str:
     """
@@ -728,21 +667,16 @@ def upload_to_cdn(file_path: str) -> str:
             url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{gh_fname}"
             logger.info(f"✅ CDN GitHub raw: {url}")
             return url
-        # Safe error handling — only call .json() if response has JSON
-        try:
-            err_msg = r.json().get('message', '')
-        except:
-            err_msg = r.text[:100]
-        logger.warning(f"GitHub raw: HTTP {r.status_code} | {err_msg}")
+        logger.warning(f"GitHub raw: HTTP {r.status_code} | {r.json().get('message','')}")
     except Exception as e:
         logger.warning(f"GitHub raw: {e}")
 
     raise ValueError("All 3 CDN uploads failed!")
 
 
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 # INSTAGRAM GRAPH API
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 
 def post_as_photo(image_path: str) -> str:
     """Upload JPG and post as Instagram PHOTO post."""
@@ -841,80 +775,21 @@ def post_as_reel(video_path: str) -> str:
     return post_id
 
 
-def jpg_to_mp4(image_path: str) -> str:
-    """
-    Convert jpg thumbnail to 7s mp4 for Reel upload when only thumbnail available.
-    Raises ValueError with specific error code if ffmpeg unavailable/fails.
-    """
-    import subprocess, shutil
-    output = "/tmp/reel.mp4"
-    ffmpeg = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
-    
-    if not os.path.exists(ffmpeg):
-        logger.warning("⚠️ ffmpeg not found — will post as static photo instead")
-        raise ValueError("ffmpeg_unavailable")
-    
-    try:
-        r = subprocess.run([
-            ffmpeg, "-y", "-loop", "1", "-i", image_path, "-t", "7",
-            "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,"
-                   "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", "30", "-an",
-            output
-        ], capture_output=True, text=True, timeout=120)
-        
-        if r.returncode != 0:
-            logger.warning(f"⚠️ ffmpeg conversion failed: {r.stderr[-400:]}")
-            raise ValueError("ffmpeg_conversion_failed")
-        
-        size = os.path.getsize(output)
-        if size < 5000:
-            logger.warning(f"⚠️ ffmpeg output too small ({size}b), falling back to photo")
-            raise ValueError("ffmpeg_output_too_small")
-        
-        logger.info("✅ jpg->mp4: " + str(size) + " bytes")
-        return output
-    
-    except subprocess.TimeoutExpired:
-        logger.warning("⚠️ ffmpeg conversion timed out — will post as photo")
-        raise ValueError("ffmpeg_timeout")
-    except ValueError:
-        raise
-    except Exception as e:
-        logger.warning(f"⚠️ ffmpeg error: {e}")
-        raise ValueError("ffmpeg_error")
-
-
 def post_to_instagram(media_path: str, is_video: bool) -> str:
     """
     Smart router:
-    - is_video=False: post as PHOTO
-    - is_video=True:  post as REEL
-      .mp4 file -> post directly as Reel
-      .jpg file (video pin thumbnail) -> try convert to mp4; fallback to photo if ffmpeg unavailable
+    - is_video=False → post as PHOTO (image_url)
+    - is_video=True  → post as REEL (video_url) — no conversion, post directly
     """
     if is_video:
-        if not media_path.endswith(".mp4"):
-            logger.info("🎥 Video pin with jpg thumbnail — attempting mp4 conversion for Reel...")
-            try:
-                media_path = jpg_to_mp4(media_path)
-                return post_as_reel(media_path)
-            except ValueError as e:
-                err = str(e)
-                if "ffmpeg" in err.lower():
-                    logger.warning("⚠️ ffmpeg unavailable — posting video pin as static photo instead")
-                    return post_as_photo(media_path)
-                raise
         return post_as_reel(media_path)
     else:
         return post_as_photo(media_path)
 
 
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 # TELEGRAM
-# ──────────────────────────────────────────────────────────────────[...]
-
+# ─────────────────────────────────────────────────────────────────────────────
 
 def send_telegram(msg: str):
     if not TELEGRAM_BOT_TOKEN:
@@ -930,13 +805,13 @@ def send_telegram(msg: str):
         logger.warning(f"Telegram: {e}")
 
 
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 # MAIN
-# ──────────────────────────────────────────────────────────────────[...]
+# ─────────────────────────────────────────────────────────────────────────────
 
 def main():
     logger.info("=" * 60)
-    logger.info("🚀 Pinterest → Instagram Auto Poster | v7 IMPROVED")
+    logger.info("🚀 Pinterest → Instagram Auto Poster | v6 FINAL")
     logger.info(f"   Account : {INSTAGRAM_ACCOUNT_ID}")
     logger.info(f"   Sheet   : {GOOGLE_SHEET_ID}")
     logger.info(f"   Repo    : {GITHUB_REPO}")
@@ -980,7 +855,7 @@ def main():
 
             logger.info(f"🎉 SUCCESS! Instagram Post ID: {post_id}")
             mark_url_posted(pin_url)
-            update_sheet_status(pin_url, max_retries=3)
+            update_sheet_status(pin_url)
 
             send_telegram(
                 f"✅ <b>Posted to Instagram!</b>\n\n"
@@ -994,7 +869,7 @@ def main():
         except ValueError as e:
             err = str(e)
             # Extraction failure = bad URL → skip silently and try next
-            if any(k in err for k in ["Cannot extract pin ID", "All 5 methods", "Cannot find pin"]):
+            if any(k in err for k in ["Cannot extract pin ID", "All 6 methods", "Cannot find pin"]):
                 skip_count += 1
                 logger.warning(f"⏭  Skipping (bad URL #{skip_count}): {err[:80]}")
                 continue
@@ -1028,5 +903,14 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
 
 
