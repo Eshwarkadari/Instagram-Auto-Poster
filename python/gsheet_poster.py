@@ -611,16 +611,15 @@ def download_media(media_url: str) -> tuple:
 def upload_to_cdn(file_path: str) -> str:
     """
     Upload image or video to a public CDN.
-    Automatically detects file type (jpg/mp4) and sets correct mime type.
-    Instagram requires publicly accessible URL for both images and videos.
+    Tries 5 options in order. Instagram needs a public URL.
     """
-    is_video = file_path.endswith(".mp4")
-    mime     = "video/mp4"  if is_video else "image/jpeg"
-    fname_cdn = "reel.mp4"  if is_video else "img.jpg"
-    ext       = ".mp4"      if is_video else ".jpg"
-    logger.info(f"Uploading {'video' if is_video else 'image'} to CDN: {file_path}")
+    is_video  = file_path.endswith(".mp4")
+    mime      = "video/mp4"  if is_video else "image/jpeg"
+    fname_cdn = "reel.mp4"   if is_video else "img.jpg"
+    ext       = ".mp4"       if is_video else ".jpg"
+    logger.info("Uploading " + ("video" if is_video else "image") + " to CDN...")
 
-    # Option 1: catbox.moe — permanent, supports mp4
+    # Option 1: catbox.moe — permanent free hosting
     try:
         with open(file_path, "rb") as f:
             r = requests.post(
@@ -630,13 +629,13 @@ def upload_to_cdn(file_path: str) -> str:
                 timeout=120)
         url = r.text.strip()
         if r.status_code == 200 and url.startswith("https://"):
-            logger.info(f"✅ CDN catbox: {url}")
+            logger.info("CDN catbox: " + url)
             return url
-        logger.warning(f"catbox: HTTP {r.status_code} | {r.text[:100]}")
+        logger.warning("catbox: HTTP " + str(r.status_code) + " | " + r.text[:80])
     except Exception as e:
-        logger.warning(f"catbox: {e}")
+        logger.warning("catbox: " + str(e)[:60])
 
-    # Option 2: litterbox — 72h, supports mp4
+    # Option 2: litterbox — 72h free hosting
     try:
         with open(file_path, "rb") as f:
             r = requests.post(
@@ -646,37 +645,73 @@ def upload_to_cdn(file_path: str) -> str:
                 timeout=120)
         url = r.text.strip()
         if r.status_code == 200 and url.startswith("https://"):
-            logger.info(f"✅ CDN litterbox: {url}")
+            logger.info("CDN litterbox: " + url)
             return url
-        logger.warning(f"litterbox: HTTP {r.status_code} | {r.text[:100]}")
+        logger.warning("litterbox: HTTP " + str(r.status_code) + " | " + r.text[:80])
     except Exception as e:
-        logger.warning(f"litterbox: {e}")
+        logger.warning("litterbox: " + str(e)[:60])
 
-    # Option 3: GitHub raw — always works, correct extension for video
+    # Option 3: 0x0.st — simple file host
     try:
         with open(file_path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode("utf-8")
-        gh_fname = f"storage/post_{int(time.time())}{ext}"
-        r = requests.put(
-            f"https://api.github.com/repos/{GITHUB_REPO}/contents/{gh_fname}",
-            headers=HEADERS_GH,
-            json={"message": f"tmp: post {'video' if is_video else 'image'}", "content": b64},
-            timeout=60)
-        if r.status_code in [200, 201]:
-            time.sleep(5)  # Wait for GitHub CDN to propagate
-            url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{gh_fname}"
-            logger.info(f"✅ CDN GitHub raw: {url}")
+            r = requests.post(
+                "https://0x0.st",
+                files={"file": (fname_cdn, f, mime)},
+                timeout=120)
+        url = r.text.strip()
+        if r.status_code == 200 and url.startswith("https://"):
+            logger.info("CDN 0x0.st: " + url)
             return url
-        logger.warning(f"GitHub raw: HTTP {r.status_code} | {r.json().get('message','')}")
+        logger.warning("0x0.st: HTTP " + str(r.status_code) + " | " + r.text[:80])
     except Exception as e:
-        logger.warning(f"GitHub raw: {e}")
+        logger.warning("0x0.st: " + str(e)[:60])
 
-    raise ValueError("All 3 CDN uploads failed!")
+    # Option 4: file.io — expires after download
+    try:
+        with open(file_path, "rb") as f:
+            r = requests.post(
+                "https://file.io/?expires=1d",
+                files={"file": (fname_cdn, f, mime)},
+                timeout=120)
+        if r.status_code == 200:
+            data = r.json()
+            url = data.get("link", "")
+            if url.startswith("https://"):
+                logger.info("CDN file.io: " + url)
+                return url
+        logger.warning("file.io: HTTP " + str(r.status_code))
+    except Exception as e:
+        logger.warning("file.io: " + str(e)[:60])
+
+    # Option 5: GitHub raw (uses GITHUB_TOKEN from env which has repo write access)
+    try:
+        gh_token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
+        if gh_token:
+            with open(file_path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("utf-8")
+            gh_fname = "storage/post_" + str(int(time.time())) + ext
+            r = requests.put(
+                "https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + gh_fname,
+                headers={
+                    "Authorization": "Bearer " + gh_token,
+                    "Accept": "application/vnd.github+json",
+                },
+                json={"message": "tmp: post file", "content": b64},
+                timeout=60)
+            if r.status_code in [200, 201]:
+                time.sleep(5)
+                url = "https://raw.githubusercontent.com/" + GITHUB_REPO + "/main/" + gh_fname
+                logger.info("CDN GitHub raw: " + url)
+                return url
+            logger.warning("GitHub raw: HTTP " + str(r.status_code) + " | " + r.json().get("message", "")[:80])
+        else:
+            logger.warning("GitHub raw: No GH_TOKEN available")
+    except Exception as e:
+        logger.warning("GitHub raw: " + str(e)[:60])
+
+    raise ValueError("All 5 CDN uploads failed!")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# INSTAGRAM GRAPH API
-# ─────────────────────────────────────────────────────────────────────────────
 
 def post_as_photo(image_path: str) -> str:
     """Upload JPG and post as Instagram PHOTO post."""
@@ -903,6 +938,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
