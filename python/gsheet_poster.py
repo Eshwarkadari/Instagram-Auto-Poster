@@ -810,13 +810,40 @@ def post_as_reel(video_path: str) -> str:
     return post_id
 
 
+def jpg_to_mp4(image_path: str) -> str:
+    """Convert jpg image to 7s mp4 for Reel when only thumbnail available."""
+    import subprocess, shutil
+    output = "/tmp/reel.mp4"
+    ffmpeg = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
+    if not os.path.exists(ffmpeg):
+        raise ValueError("ffmpeg not found - add 'sudo apt-get install -y ffmpeg' to workflow")
+    result = subprocess.run([
+        ffmpeg, "-y", "-loop", "1", "-i", image_path, "-t", "7",
+        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,"
+               "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", "30", "-an",
+        output
+    ], capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        raise ValueError("ffmpeg failed: " + result.stderr[-400:])
+    size = os.path.getsize(output)
+    logger.info("✅ jpg→mp4: " + str(size) + " bytes | 7s")
+    return output
+
+
 def post_to_instagram(media_path: str, is_video: bool) -> str:
     """
     Smart router:
-    - is_video=False → post as PHOTO (image_url)
-    - is_video=True  → post as REEL (video_url) — no conversion, post directly
+    - is_video=False → post as PHOTO
+    - is_video=True  → post as REEL
+      If file is .mp4 → post directly as Reel
+      If file is .jpg (video pin thumbnail) → convert to mp4 first, then Reel
     """
     if is_video:
+        if not media_path.endswith(".mp4"):
+            logger.info("Video pin has jpg thumbnail — converting to mp4 for Reel...")
+            media_path = jpg_to_mp4(media_path)
         return post_as_reel(media_path)
     else:
         return post_as_photo(media_path)
@@ -904,18 +931,14 @@ def main():
         except ValueError as e:
             err = str(e)
             # Extraction failure = bad URL → skip silently and try next
-            if any(k in err for k in ["Cannot extract pin ID", "All 6 methods", "Cannot find pin"]):
+            if any(k in err for k in ["Cannot extract pin ID", "All 5 methods", "All 6 methods", "Cannot find pin", "exhausted"]):
                 skip_count += 1
                 logger.warning(f"⏭  Skipping (bad URL #{skip_count}): {err[:80]}")
                 continue
-            # Other failures (IG, CDN) → alert and stop
-            logger.error(f"❌ Fatal error: {err}")
-            send_telegram(
-                f"❌ <b>Post Failed!</b>\n\n"
-                f"🔗 {pin_url}\n"
-                f"⚠️ <code>{err[:400]}</code>\n\n"
-                f"Will retry at next scheduled run.")
-            break
+            # CDN / IG failure → try next URL
+            skip_count += 1
+            logger.warning(f"⏭  Skipping (error #{skip_count}): {err[:100]}")
+            continue
 
         except Exception as e:
             logger.error(f"❌ Unexpected error: {e}")
@@ -938,6 +961,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
