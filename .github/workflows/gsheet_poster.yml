@@ -32,9 +32,6 @@ jobs:
       - name: Install dependencies
         run: pip install requests==2.31.0
 
-      - name: Debug Pinterest (known pin)
-        run: python python/debug_pinterest.py 872361390330023115
-
       - name: Run Instagram Auto Poster
         env:
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
