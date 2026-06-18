@@ -34,7 +34,7 @@ jobs:
 
       - name: Test oEmbed response (debug)
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          DEBUG_GH_TOKEN: ${{ secrets.DEBUG_GH_TOKEN }}
           GITHUB_REPO: ${{ github.repository }}
         run: python python/test_oembed.py
 
