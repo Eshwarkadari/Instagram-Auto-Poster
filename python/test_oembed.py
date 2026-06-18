@@ -1,4 +1,4 @@
-import requests, json, urllib.parse, sys
+import requests, json, urllib.parse, os, base64, time
 
 pin_urls = [
     "https://www.pinterest.com/pin/872361390330023115/",
@@ -8,10 +8,11 @@ pin_urls = [
 output_lines = []
 def log(msg):
     print(msg)
-    output_lines.append(msg)
+    output_lines.append(str(msg))
 
 for pin_url in pin_urls:
-    log(f"\n=== Testing: {pin_url} ===")
+    log("")
+    log("=== Testing: " + pin_url + " ===")
     for ua in [
         "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
         "facebookexternalhit/1.1",
@@ -21,16 +22,46 @@ for pin_url in pin_urls:
                 "https://www.pinterest.com/oembed.json?url=" + urllib.parse.quote(pin_url),
                 timeout=15,
                 headers={"User-Agent": ua, "Accept": "application/json"})
-            log(f"  UA={ua[:30]} HTTP={r.status_code}")
+            log("  UA=" + ua[:30] + " HTTP=" + str(r.status_code))
             if r.status_code == 200:
                 d = r.json()
-                log(f"  type: {d.get('type')}")
-                log(f"  thumbnail_url: {d.get('thumbnail_url','')}")
-                log(f"  html: {d.get('html','')}")
-                log(f"  ALL FIELDS JSON: {json.dumps(d)}")
+                log("  type: " + str(d.get('type')))
+                log("  thumbnail_url: " + str(d.get('thumbnail_url','')))
+                log("  html: " + str(d.get('html','')))
+                log("  ALL FIELDS JSON: " + json.dumps(d))
+            else:
+                log("  body: " + r.text[:200])
         except Exception as e:
-            log(f"  ERROR: {e}")
+            log("  ERROR: " + str(e))
 
-# Write output to a file in repo so we can read it via Contents API
-with open("oembed_debug_output.txt", "w") as f:
-    f.write("\n".join(output_lines))
+result_text = "\n".join(output_lines)
+
+# Push directly via GitHub API instead of git commit (more reliable in Actions)
+GH_TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
+REPO = os.environ.get("GITHUB_REPO", "Eshwarkadari/Instagram-Auto-Poster")
+
+if GH_TOKEN:
+    b64content = base64.b64encode(result_text.encode("utf-8")).decode("utf-8")
+    # Check if file exists to get sha
+    sha = None
+    try:
+        r = requests.get(
+            "https://api.github.com/repos/" + REPO + "/contents/oembed_debug_output.txt",
+            headers={"Authorization": "Bearer " + GH_TOKEN, "Accept": "application/vnd.github+json"},
+            timeout=15)
+        if r.status_code == 200:
+            sha = r.json().get("sha")
+    except Exception as e:
+        log("sha check error: " + str(e))
+
+    payload = {"message": "debug: oEmbed output " + str(int(time.time())), "content": b64content}
+    if sha:
+        payload["sha"] = sha
+
+    r2 = requests.put(
+        "https://api.github.com/repos/" + REPO + "/contents/oembed_debug_output.txt",
+        headers={"Authorization": "Bearer " + GH_TOKEN, "Accept": "application/vnd.github+json"},
+        json=payload, timeout=30)
+    print("Push result:", r2.status_code, r2.text[:200])
+else:
+    print("No GH_TOKEN available")
