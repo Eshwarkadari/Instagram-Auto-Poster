@@ -35,6 +35,14 @@ jobs:
       - name: Test oEmbed response (debug)
         run: python python/test_oembed.py
 
+      - name: Commit debug output
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add oembed_debug_output.txt
+          git commit -m "debug: oEmbed output" || echo "nothing to commit"
+          git push || echo "push failed"
+
       - name: Run Instagram Auto Poster
         env:
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
