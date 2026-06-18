@@ -32,12 +32,6 @@ jobs:
       - name: Install dependencies
         run: pip install requests==2.31.0
 
-      - name: Test oEmbed response (debug)
-        env:
-          DEBUG_GH_TOKEN: ${{ secrets.DEBUG_GH_TOKEN }}
-          GITHUB_REPO: ${{ github.repository }}
-        run: python python/test_oembed.py
-
       - name: Run Instagram Auto Poster
         env:
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
