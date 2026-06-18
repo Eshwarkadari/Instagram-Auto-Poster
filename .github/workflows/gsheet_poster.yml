@@ -33,15 +33,10 @@ jobs:
         run: pip install requests==2.31.0
 
       - name: Test oEmbed response (debug)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
         run: python python/test_oembed.py
-
-      - name: Commit debug output
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add oembed_debug_output.txt
-          git commit -m "debug: oEmbed output" || echo "nothing to commit"
-          git push || echo "push failed"
 
       - name: Run Instagram Auto Poster
         env:
