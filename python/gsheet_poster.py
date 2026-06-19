@@ -170,82 +170,79 @@ def browser_headers(referer="https://www.google.com/"):
 def get_sheet_rows():
     """Read queue from Google Sheet. Falls back to links.txt in repo."""
     for method, url in [
-        ("CSV",  f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv&gid=0"),
-        ("gviz", f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv"),
+        ("CSV",  "https://docs.google.com/spreadsheets/d/" + GOOGLE_SHEET_ID + "/export?format=csv&gid=0"),
+        ("gviz", "https://docs.google.com/spreadsheets/d/" + GOOGLE_SHEET_ID + "/gviz/tq?tqx=out:csv"),
     ]:
         try:
             r = requests.get(url, timeout=15, allow_redirects=True,
                              headers={"User-Agent": USER_AGENTS[0]})
             if r.status_code == 200 and "," in r.text:
                 rows = list(csv.DictReader(io.StringIO(r.text)))
-                logger.info(f"✅ Sheet ({method}): {len(rows)} rows | cols={list(rows[0].keys()) if rows else []}")
+                logger.info("Sheet (" + method + "): " + str(len(rows)) + " rows | cols=" + str(list(rows[0].keys()) if rows else []))
                 return rows
         except Exception as e:
-            logger.warning(f"Sheet {method}: {e}")
+            logger.warning("Sheet " + method + ": " + str(e))
 
-    # Fallback: links.txt
-    logger.warning("Sheet unavailable — falling back to links.txt")
+    logger.warning("Sheet unavailable - falling back to links.txt")
     try:
         r = requests.get(
-            f"https://api.github.com/repos/{GITHUB_REPO}/contents/links.txt",
+            "https://api.github.com/repos/" + GITHUB_REPO + "/contents/links.txt",
             headers=HEADERS_GH, timeout=10)
         content = base64.b64decode(r.json()["content"]).decode("utf-8")
         lines = [l.strip() for l in content.split("\n")
                  if l.strip() and not l.startswith("#") and "pin" in l.lower()]
-        logger.info(f"✅ links.txt: {len(lines)} URLs")
-        return [{"Pinterest_URL": u, "Status": "PENDING"} for u in lines]
+        logger.info("links.txt: " + str(len(lines)) + " URLs")
+        return [{"image_Pinterest_URL": u, "Status": "PENDING"} for u in lines]
     except Exception as e:
-        logger.error(f"links.txt failed: {e}")
+        logger.error("links.txt failed: " + str(e))
         return []
 
 
 def mark_url_posted(pin_url: str):
-    """Remove from links.txt, add to posted.txt."""
+    """Remove from links.txt, add to posted.txt (best-effort, non-fatal)."""
     try:
-        # Remove from links.txt
         r = requests.get(
-            f"https://api.github.com/repos/{GITHUB_REPO}/contents/links.txt",
+            "https://api.github.com/repos/" + GITHUB_REPO + "/contents/links.txt",
             headers=HEADERS_GH, timeout=10)
-        d = r.json()
-        content = base64.b64decode(d["content"]).decode("utf-8")
-        lines = [l for l in content.split("\n") if l.strip() != pin_url.strip()]
-        requests.put(
-            f"https://api.github.com/repos/{GITHUB_REPO}/contents/links.txt",
-            headers=HEADERS_GH,
-            json={"message": f"Auto: posted {pin_url[:40]}",
-                  "sha": d["sha"],
-                  "content": base64.b64encode("\n".join(lines).encode()).decode()})
+        if r.status_code == 200:
+            d = r.json()
+            content = base64.b64decode(d["content"]).decode("utf-8")
+            lines = [l for l in content.split("\n") if l.strip() != pin_url.strip()]
+            requests.put(
+                "https://api.github.com/repos/" + GITHUB_REPO + "/contents/links.txt",
+                headers=HEADERS_GH,
+                json={"message": "Auto: posted " + pin_url[:40],
+                      "sha": d["sha"],
+                      "content": base64.b64encode("\n".join(lines).encode()).decode()})
 
-        # Add to posted.txt
         r2 = requests.get(
-            f"https://api.github.com/repos/{GITHUB_REPO}/contents/posted.txt",
+            "https://api.github.com/repos/" + GITHUB_REPO + "/contents/posted.txt",
             headers=HEADERS_GH, timeout=10)
         existing = base64.b64decode(r2.json()["content"]).decode("utf-8") if r2.status_code == 200 else "# Posted URLs\n"
         sha2 = r2.json().get("sha") if r2.status_code == 200 else None
         timestamp = time.strftime("%Y-%m-%d %H:%M IST")
-        new_entry = f"{timestamp} | {pin_url}"
+        new_entry = timestamp + " | " + pin_url
         new_posted = existing.rstrip() + "\n" + new_entry + "\n"
-        payload = {"message": "Auto: mark posted",
-                   "content": base64.b64encode(new_posted.encode()).decode()}
+        payload = {"message": "Auto: mark posted", "content": base64.b64encode(new_posted.encode()).decode()}
         if sha2:
             payload["sha"] = sha2
         requests.put(
-            f"https://api.github.com/repos/{GITHUB_REPO}/contents/posted.txt",
+            "https://api.github.com/repos/" + GITHUB_REPO + "/contents/posted.txt",
             headers=HEADERS_GH, json=payload)
-        logger.info("✅ links.txt + posted.txt updated")
+        logger.info("links.txt + posted.txt updated")
     except Exception as e:
-        logger.warning(f"mark_url_posted: {e}")
+        logger.warning("mark_url_posted: " + str(e))
 
 
 def update_sheet_status(pin_url: str):
-    """Mark URL as POSTED in Google Sheet via Apps Script."""
+    """Mark URL as POSTED in Google Sheet via Apps Script (searches all columns)."""
     try:
         WEBAPP_URL = ("https://script.google.com/macros/s/"
                       "AKfycbwkvG2B_ewPkyt2nibNa61i1SOiPno3yj5ikMexuPE6yo3q6xVkuShqbFt9gj5htqgZ/exec")
         r = requests.get(WEBAPP_URL, params={"url": pin_url}, timeout=20)
-        logger.info(f"Sheet status update: {r.text[:100]}")
+        logger.info("Sheet status update: " + r.text[:100])
     except Exception as e:
-        logger.warning(f"Sheet status update: {e}")
+        logger.warning("Sheet status update: " + str(e))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -850,109 +847,191 @@ def send_telegram(msg: str):
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
 
+def get_queues(rows):
+    """
+    Split sheet rows into two independent queues:
+      - image queue: column A (image_Pinterest_URL) + column B (Status)
+      - video queue: column C (Video_url_pinterest)  + column D (Status)
+    Returns (image_pending, video_pending) - each a list of URLs.
+    """
+    image_pending = []
+    video_pending = []
+
+    for row in rows:
+        # Image queue - flexible column name matching
+        img_url = (row.get("image_Pinterest_URL") or row.get("Image_Pinterest_URL")
+                   or row.get("Pinterest_URL") or row.get("image_pinterest_url") or "").strip()
+        img_status = (row.get("Status") or "").strip().upper()
+        if img_url and img_status == "PENDING":
+            image_pending.append(img_url)
+
+        # Video queue - flexible column name matching
+        vid_url = (row.get("Video_url_pinterest") or row.get("video_url_pinterest")
+                   or row.get("Video_URL_Pinterest") or row.get("Video_Pinterest_URL") or "").strip()
+        # Second "Status" column (column D) - csv.DictReader keeps only the LAST
+        # duplicate header by default, so we read it from raw row values by position
+        vid_status = (row.get("Status_2") or row.get("Status") or "").strip().upper()
+        if vid_url and vid_status == "PENDING":
+            video_pending.append(vid_url)
+
+    return image_pending, video_pending
+
+
+def get_sheet_rows_raw():
+    """
+    Read sheet as raw rows (list of lists) to correctly handle duplicate
+    'Status' column headers (A/B = image+status, C/D = video+status).
+    csv.DictReader silently collapses duplicate headers, so we parse manually.
+    """
+    for method, url in [
+        ("CSV",  "https://docs.google.com/spreadsheets/d/" + GOOGLE_SHEET_ID + "/export?format=csv&gid=0"),
+        ("gviz", "https://docs.google.com/spreadsheets/d/" + GOOGLE_SHEET_ID + "/gviz/tq?tqx=out:csv"),
+    ]:
+        try:
+            r = requests.get(url, timeout=15, allow_redirects=True,
+                             headers={"User-Agent": USER_AGENTS[0]})
+            if r.status_code == 200 and "," in r.text:
+                reader = csv.reader(io.StringIO(r.text))
+                rows = list(reader)
+                if rows:
+                    logger.info("Sheet (" + method + "): " + str(len(rows)) + " raw rows | header=" + str(rows[0]))
+                    return rows
+        except Exception as e:
+            logger.warning("Sheet " + method + ": " + str(e))
+    return []
+
+
+def get_queues_v2():
+    """
+    Reads the 4-column sheet layout:
+      Col A: image_Pinterest_URL   Col B: Status
+      Col C: Video_url_pinterest   Col D: Status
+    Returns (image_pending, video_pending) lists of URLs.
+    """
+    rows = get_sheet_rows_raw()
+    if not rows or len(rows) < 2:
+        return [], []
+
+    image_pending = []
+    video_pending = []
+
+    for row in rows[1:]:  # skip header
+        # Column A/B - image
+        if len(row) > 1:
+            img_url    = row[0].strip()
+            img_status = row[1].strip().upper()
+            if img_url and img_status == "PENDING":
+                image_pending.append(img_url)
+
+        # Column C/D - video
+        if len(row) > 3:
+            vid_url    = row[2].strip()
+            vid_status = row[3].strip().upper()
+            if vid_url and vid_status == "PENDING":
+                video_pending.append(vid_url)
+
+    logger.info(str(len(image_pending)) + " image URLs PENDING | " + str(len(video_pending)) + " video URLs PENDING")
+    return image_pending, video_pending
+
+
+def process_one(pin_url: str, forced_type: str, label: str):
+    """
+    Process a single URL end-to-end: extract media, download, post to Instagram.
+    label is "image" or "video" - just for logging/Telegram messages.
+    Returns post_id on success, raises on failure.
+    """
+    logger.info("Processing " + label + ": " + pin_url)
+    media_url, is_vid_pin = get_pinterest_media(pin_url, forced_type=forced_type)
+    media_path, is_vid    = download_media(media_url)
+    is_vid = is_vid or is_vid_pin or (forced_type.strip().lower() == "video")
+    post_id = post_to_instagram(media_path, is_vid)
+    logger.info(label.upper() + " POSTED! Instagram Post ID: " + str(post_id))
+    return post_id
+
+
 def main():
     logger.info("=" * 60)
-    logger.info("🚀 Pinterest → Instagram Auto Poster | v6 FINAL")
-    logger.info(f"   Account : {INSTAGRAM_ACCOUNT_ID}")
-    logger.info(f"   Sheet   : {GOOGLE_SHEET_ID}")
-    logger.info(f"   Repo    : {GITHUB_REPO}")
+    logger.info("Pinterest -> Instagram Auto Poster | v8 DUAL QUEUE")
+    logger.info("   Account : " + str(INSTAGRAM_ACCOUNT_ID))
+    logger.info("   Sheet   : " + str(GOOGLE_SHEET_ID))
+    logger.info("   Repo    : " + str(GITHUB_REPO))
     logger.info("=" * 60)
 
-    # Load queue
-    rows = get_sheet_rows()
-    pending = []  # list of (url, type) tuples
-    for row in rows:
-        status = (row.get("Status") or row.get("status") or "").strip().upper()
-        url = (row.get("Pinterest_URL") or row.get("pinterest_url")
-               or row.get("Pinterest URL") or "").strip()
-        media_type = (row.get("Type") or row.get("type") or "").strip().lower()
-        if status == "PENDING" and url:
-            pending.append((url, media_type))
+    image_pending, video_pending = get_queues_v2()
 
-    logger.info(f"📊 {len(pending)} PENDING URLs in queue")
-
-    if not pending:
-        logger.warning("Queue is empty!")
+    if not image_pending and not video_pending:
+        logger.warning("Both queues are empty!")
         send_telegram(
-            "⚠️ <b>Queue Empty!</b>\n\n"
-            "No PENDING URLs found.\n"
+            "Queue Empty!\n\n"
+            "No PENDING URLs found in either column.\n"
             "Add Pinterest URLs with Status=PENDING to your Google Sheet:\n"
-            f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}")
+            "https://docs.google.com/spreadsheets/d/" + GOOGLE_SHEET_ID)
         return
 
-    # Try up to 5 URLs — skip bad ones, post first success
-    MAX_TRY = min(5, len(pending))
-    posted = False
-    skip_count = 0
+    results = []  # list of (label, status, detail)
 
-    for i, (pin_url, media_type) in enumerate(pending[:MAX_TRY], 1):
-        logger.info(f"\n{'─'*50}")
-        logger.info(f"📌 Attempt {i}/{MAX_TRY}: {pin_url} | Type={media_type or 'image (default)'}")
-
-        try:
-            media_url, is_vid_pin = get_pinterest_media(pin_url, forced_type=media_type)
-            media_path, is_vid    = download_media(media_url)
-            is_vid = is_vid or is_vid_pin  # video if URL is video OR sheet says video
-            post_id            = post_to_instagram(media_path, is_vid)
-
-            logger.info(f"🎉 SUCCESS! Instagram Post ID: {post_id}")
-            mark_url_posted(pin_url)
-            update_sheet_status(pin_url)
-
-            send_telegram(
-                f"✅ <b>Posted to Instagram!</b>\n\n"
-                f"🔗 {pin_url}\n"
-                f"📸 Post ID: <code>{post_id}</code>\n"
-                f"🕐 {time.strftime('%Y-%m-%d %H:%M')} IST\n"
-                f"📊 {len(pending) - i} URLs remaining in queue")
-            posted = True
-            break
-
-        except ValueError as e:
-            err = str(e)
-            # Extraction failure = bad URL → skip silently and try next
-            if any(k in err for k in ["Cannot extract pin ID", "All 5 methods", "All 6 methods", "Cannot find pin", "exhausted"]):
-                skip_count += 1
-                logger.warning(f"⏭  Skipping (bad URL #{skip_count}): {err[:80]}")
+    # ── Post ONE image ──────────────────────────────────────────────────────
+    if image_pending:
+        MAX_TRY_IMG = min(5, len(image_pending))
+        img_posted = False
+        for i, pin_url in enumerate(image_pending[:MAX_TRY_IMG], 1):
+            logger.info("-" * 50)
+            logger.info("IMAGE Attempt " + str(i) + "/" + str(MAX_TRY_IMG) + ": " + pin_url)
+            try:
+                post_id = process_one(pin_url, "image", "image")
+                mark_url_posted(pin_url)
+                update_sheet_status(pin_url)
+                results.append(("image", "posted", pin_url + " -> " + str(post_id)))
+                img_posted = True
+                break
+            except Exception as e:
+                logger.warning("IMAGE skip: " + str(e)[:120])
                 continue
-            # CDN / IG failure → try next URL
-            skip_count += 1
-            logger.warning(f"⏭  Skipping (error #{skip_count}): {err[:100]}")
-            continue
+        if not img_posted:
+            results.append(("image", "failed", "tried " + str(MAX_TRY_IMG) + " URLs"))
+    else:
+        logger.info("No PENDING image URLs - skipping image post this run")
 
-        except Exception as e:
-            logger.error(f"❌ Unexpected error: {e}")
-            send_telegram(
-                f"❌ <b>Unexpected Error!</b>\n\n"
-                f"🔗 {pin_url}\n"
-                f"⚠️ <code>{str(e)[:400]}</code>")
-            break
+    # ── Post ONE video ───────────────────────────────────────────────────────
+    if video_pending:
+        MAX_TRY_VID = min(5, len(video_pending))
+        vid_posted = False
+        for i, pin_url in enumerate(video_pending[:MAX_TRY_VID], 1):
+            logger.info("-" * 50)
+            logger.info("VIDEO Attempt " + str(i) + "/" + str(MAX_TRY_VID) + ": " + pin_url)
+            try:
+                post_id = process_one(pin_url, "video", "video")
+                mark_url_posted(pin_url)
+                update_sheet_status(pin_url)
+                results.append(("video", "posted", pin_url + " -> " + str(post_id)))
+                vid_posted = True
+                break
+            except Exception as e:
+                logger.warning("VIDEO skip: " + str(e)[:120])
+                continue
+        if not vid_posted:
+            results.append(("video", "failed", "tried " + str(MAX_TRY_VID) + " URLs"))
+    else:
+        logger.info("No PENDING video URLs - skipping video post this run")
 
-    if not posted:
-        logger.error(f"Failed after {MAX_TRY} attempts ({skip_count} skipped)")
-        send_telegram(
-            f"⚠️ <b>Could Not Post!</b>\n\n"
-            f"Tried {MAX_TRY} URLs, none worked.\n\n"
-            f"URLs attempted:\n"
-            + "\n".join(f"• {u}" for u, t in pending[:MAX_TRY])
-            + "\n\n<b>Please check your Pinterest URLs are valid public pins.</b>\n"
-            f"Use: <code>https://pinterest.com/pin/123456789/</code>")
+    # ── Telegram summary ──────────────────────────────────────────────────────
+    lines = ["<b>Run Summary</b>", ""]
+    any_posted = False
+    for label, status, detail in results:
+        icon = "OK" if status == "posted" else "FAIL"
+        lines.append("[" + icon + "] " + label.upper() + ": " + detail[:200])
+        if status == "posted":
+            any_posted = True
+    lines.append("")
+    lines.append(str(len(image_pending)) + " images / " + str(len(video_pending)) + " videos remaining in queue")
+    lines.append(time.strftime("%Y-%m-%d %H:%M") + " IST")
+
+    send_telegram("\n".join(lines))
+
+    if not any_posted and results:
+        logger.error("No posts succeeded this run")
+
 
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
