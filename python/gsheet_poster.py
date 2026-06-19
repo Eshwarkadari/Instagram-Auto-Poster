@@ -949,9 +949,47 @@ def process_one(pin_url: str, forced_type: str, label: str):
     return post_id
 
 
+def get_last_post_type() -> str:
+    """Read last posted type ('image' or 'video') from state file in repo."""
+    try:
+        r = requests.get(
+            "https://api.github.com/repos/" + GITHUB_REPO + "/contents/last_post_type.txt",
+            headers=HEADERS_GH, timeout=10)
+        if r.status_code == 200:
+            content = base64.b64decode(r.json()["content"]).decode("utf-8").strip().lower()
+            if content in ("image", "video"):
+                return content
+    except Exception as e:
+        logger.warning("get_last_post_type: " + str(e))
+    return "video"  # default so first-ever run posts image first
+
+
+def set_last_post_type(value: str):
+    """Write last posted type to state file in repo."""
+    try:
+        sha = None
+        r = requests.get(
+            "https://api.github.com/repos/" + GITHUB_REPO + "/contents/last_post_type.txt",
+            headers=HEADERS_GH, timeout=10)
+        if r.status_code == 200:
+            sha = r.json().get("sha")
+        payload = {
+            "message": "Auto: last post type = " + value,
+            "content": base64.b64encode(value.encode()).decode(),
+        }
+        if sha:
+            payload["sha"] = sha
+        requests.put(
+            "https://api.github.com/repos/" + GITHUB_REPO + "/contents/last_post_type.txt",
+            headers=HEADERS_GH, json=payload, timeout=15)
+        logger.info("last_post_type.txt updated -> " + value)
+    except Exception as e:
+        logger.warning("set_last_post_type: " + str(e))
+
+
 def main():
     logger.info("=" * 60)
-    logger.info("Pinterest -> Instagram Auto Poster | v8 DUAL QUEUE")
+    logger.info("Pinterest -> Instagram Auto Poster | v9 ALTERNATING")
     logger.info("   Account : " + str(INSTAGRAM_ACCOUNT_ID))
     logger.info("   Sheet   : " + str(GOOGLE_SHEET_ID))
     logger.info("   Repo    : " + str(GITHUB_REPO))
@@ -968,68 +1006,56 @@ def main():
             "https://docs.google.com/spreadsheets/d/" + GOOGLE_SHEET_ID)
         return
 
-    results = []  # list of (label, status, detail)
+    last_type = get_last_post_type()
+    want_type = "video" if last_type == "image" else "image"
+    logger.info("Last posted: " + last_type + " -> This run posts: " + want_type)
 
-    # ── Post ONE image ──────────────────────────────────────────────────────
-    if image_pending:
-        MAX_TRY_IMG = min(5, len(image_pending))
-        img_posted = False
-        for i, pin_url in enumerate(image_pending[:MAX_TRY_IMG], 1):
-            logger.info("-" * 50)
-            logger.info("IMAGE Attempt " + str(i) + "/" + str(MAX_TRY_IMG) + ": " + pin_url)
-            try:
-                post_id = process_one(pin_url, "image", "image")
-                mark_url_posted(pin_url)
-                update_sheet_status(pin_url)
-                results.append(("image", "posted", pin_url + " -> " + str(post_id)))
-                img_posted = True
-                break
-            except Exception as e:
-                logger.warning("IMAGE skip: " + str(e)[:120])
-                continue
-        if not img_posted:
-            results.append(("image", "failed", "tried " + str(MAX_TRY_IMG) + " URLs"))
+    # If the preferred queue is empty, fall back to the other one (never skip a run)
+    if want_type == "image" and not image_pending:
+        logger.info("Image queue empty - falling back to video this run")
+        want_type = "video"
+    elif want_type == "video" and not video_pending:
+        logger.info("Video queue empty - falling back to image this run")
+        want_type = "image"
+
+    queue = image_pending if want_type == "image" else video_pending
+    MAX_TRY = min(5, len(queue))
+    posted = False
+    post_id = None
+    posted_url = None
+
+    for i, pin_url in enumerate(queue[:MAX_TRY], 1):
+        logger.info("-" * 50)
+        logger.info(want_type.upper() + " Attempt " + str(i) + "/" + str(MAX_TRY) + ": " + pin_url)
+        try:
+            post_id = process_one(pin_url, want_type, want_type)
+            mark_url_posted(pin_url)
+            update_sheet_status(pin_url)
+            posted = True
+            posted_url = pin_url
+            break
+        except Exception as e:
+            logger.warning(want_type.upper() + " skip: " + str(e)[:120])
+            continue
+
+    if posted:
+        set_last_post_type(want_type)
+        remaining_img = len(image_pending) - (1 if want_type == "image" else 0)
+        remaining_vid = len(video_pending) - (1 if want_type == "video" else 0)
+        send_telegram(
+            "<b>Posted to Instagram!</b>\n\n"
+            "Type: " + want_type.upper() + "\n"
+            "URL: " + posted_url + "\n"
+            "Post ID: <code>" + str(post_id) + "</code>\n"
+            "Time: " + time.strftime("%Y-%m-%d %H:%M") + " IST\n\n"
+            "Remaining: " + str(remaining_img) + " images / " + str(remaining_vid) + " videos")
+        logger.info("SUCCESS - posted " + want_type + " - " + str(post_id))
     else:
-        logger.info("No PENDING image URLs - skipping image post this run")
-
-    # ── Post ONE video ───────────────────────────────────────────────────────
-    if video_pending:
-        MAX_TRY_VID = min(5, len(video_pending))
-        vid_posted = False
-        for i, pin_url in enumerate(video_pending[:MAX_TRY_VID], 1):
-            logger.info("-" * 50)
-            logger.info("VIDEO Attempt " + str(i) + "/" + str(MAX_TRY_VID) + ": " + pin_url)
-            try:
-                post_id = process_one(pin_url, "video", "video")
-                mark_url_posted(pin_url)
-                update_sheet_status(pin_url)
-                results.append(("video", "posted", pin_url + " -> " + str(post_id)))
-                vid_posted = True
-                break
-            except Exception as e:
-                logger.warning("VIDEO skip: " + str(e)[:120])
-                continue
-        if not vid_posted:
-            results.append(("video", "failed", "tried " + str(MAX_TRY_VID) + " URLs"))
-    else:
-        logger.info("No PENDING video URLs - skipping video post this run")
-
-    # ── Telegram summary ──────────────────────────────────────────────────────
-    lines = ["<b>Run Summary</b>", ""]
-    any_posted = False
-    for label, status, detail in results:
-        icon = "OK" if status == "posted" else "FAIL"
-        lines.append("[" + icon + "] " + label.upper() + ": " + detail[:200])
-        if status == "posted":
-            any_posted = True
-    lines.append("")
-    lines.append(str(len(image_pending)) + " images / " + str(len(video_pending)) + " videos remaining in queue")
-    lines.append(time.strftime("%Y-%m-%d %H:%M") + " IST")
-
-    send_telegram("\n".join(lines))
-
-    if not any_posted and results:
-        logger.error("No posts succeeded this run")
+        logger.error("Failed to post " + want_type + " after " + str(MAX_TRY) + " attempts")
+        send_telegram(
+            "<b>Could Not Post!</b>\n\n"
+            "Tried " + str(MAX_TRY) + " " + want_type + " URLs, none worked.\n\n"
+            "Please check your Pinterest URLs are valid public pins.")
 
 
 
