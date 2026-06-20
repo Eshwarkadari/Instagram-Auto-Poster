@@ -1,0 +1,53 @@
+2026-06-20 15:46:13,188 - INFO - ============================================================
+2026-06-20 15:46:13,189 - INFO - Pinterest -> Instagram Auto Poster | v9 ALTERNATING
+2026-06-20 15:46:13,189 - INFO -    Account : 17841429486895129
+2026-06-20 15:46:13,189 - INFO -    Sheet   : 15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960
+2026-06-20 15:46:13,189 - INFO -    Repo    : Eshwarkadari/Instagram-Auto-Poster
+2026-06-20 15:46:13,189 - INFO - ============================================================
+2026-06-20 15:46:13,663 - INFO - Sheet (CSV): 50 raw rows | header=['image_Pinterest_URL', 'Status', 'Video_url_pinterest', 'Status ']
+2026-06-20 15:46:13,665 - INFO - 42 image URLs PENDING | 31 video URLs PENDING
+2026-06-20 15:46:13,919 - INFO - Last posted: image -> This run posts: video
+2026-06-20 15:46:13,920 - INFO - --------------------------------------------------
+2026-06-20 15:46:13,920 - INFO - VIDEO Attempt 1/5: https://pin.it/2F07WgfCW
+2026-06-20 15:46:13,920 - INFO - Processing video: https://pin.it/2F07WgfCW
+2026-06-20 15:46:13,920 - INFO - Resolving shortlink: https://pin.it/2F07WgfCW
+2026-06-20 15:46:15,083 - INFO -   Resolved (HEAD) → https://www.pinterest.com/pin/1012817403717571788/sent/?invite_code=a161f28ec31b
+2026-06-20 15:46:15,084 - INFO - ✅ Clean URL: https://www.pinterest.com/pin/1012817403717571788/ (pin_id=1012817403717571788)
+2026-06-20 15:46:15,085 - INFO - Working | pin_id=1012817403717571788 | url=https://www.pinterest.com/pin/1012817403717571788/ | forced_type=video
+2026-06-20 15:46:15,426 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (compatible; Googl
+2026-06-20 15:46:15,426 - INFO - oEmbed gave thumbnail only, still searching for real mp4...
+2026-06-20 15:46:15,760 - INFO - oEmbed HTTP 200 ua=facebookexternalhit/1.1 (+http
+2026-06-20 15:46:15,760 - INFO - oEmbed gave thumbnail only, still searching for real mp4...
+2026-06-20 15:46:16,081 - INFO - oEmbed HTTP 200 ua=Twitterbot/1.0
+2026-06-20 15:46:16,081 - INFO - oEmbed gave thumbnail only, still searching for real mp4...
+2026-06-20 15:46:16,373 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (Windows NT 10.0; 
+2026-06-20 15:46:16,373 - INFO - oEmbed gave thumbnail only, still searching for real mp4...
+2026-06-20 15:46:16,530 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (compatible; Googl
+2026-06-20 15:46:16,672 - INFO - oEmbed HTTP 200 ua=facebookexternalhit/1.1 (+http
+2026-06-20 15:46:16,825 - INFO - oEmbed HTTP 200 ua=Twitterbot/1.0
+2026-06-20 15:46:16,988 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (Windows NT 10.0; 
+2026-06-20 15:46:17,103 - INFO - PinResource HTTP 403 | 24 chars
+2026-06-20 15:46:17,644 - INFO - Wayback: available=None url=
+2026-06-20 15:46:17,768 - INFO - Mobile API HTTP 403 | 70 chars
+2026-06-20 15:46:18,180 - INFO - ia_archiver HTTP 200 | 958024 chars
+2026-06-20 15:46:18,189 - INFO - Method 5 ia_archiver VIDEO: https://v1.pinimg.com/videos/iht/hevcMp4V3/8a/8f/0b/8a8f0bf74987c9b532f2056b186e9af7_360w.
+2026-06-20 15:46:18,809 - INFO - ✅ Downloaded VIDEO: 257,992 bytes | https://v1.pinimg.com/videos/iht/hevcMp4V3/8a/8f/0b/8a8f0bf7
+2026-06-20 15:46:18,810 - INFO - 🎬 Posting as REEL
+2026-06-20 15:46:18,810 - INFO - Uploading video to CDN...
+2026-06-20 15:46:19,385 - WARNING - catbox: HTTP 412 | Invalid uploader
+2026-06-20 15:47:09,718 - INFO - CDN litterbox: https://litter.catbox.moe/dhayur.mp4
+2026-06-20 15:47:09,719 - INFO - Video CDN: https://litter.catbox.moe/dhayur.mp4
+2026-06-20 15:47:10,615 - INFO - Container: HTTP 200 | {"id":"18098423635982897"}
+2026-06-20 15:47:10,616 - INFO - Container ID: 18098423635982897 — polling...
+2026-06-20 15:47:21,315 - INFO -   [1/24] IN_PROGRESS
+2026-06-20 15:47:31,845 - INFO -   [2/24] IN_PROGRESS
+2026-06-20 15:47:42,397 - INFO -   [3/24] IN_PROGRESS
+2026-06-20 15:47:53,010 - INFO -   [4/24] FINISHED
+2026-06-20 15:47:53,010 - INFO - ✅ Video ready!
+2026-06-20 15:48:02,170 - INFO - 🎬 REEL POSTED! ID: 17896752381468339
+2026-06-20 15:48:02,173 - INFO - VIDEO POSTED! Instagram Post ID: 17896752381468339
+2026-06-20 15:48:03,997 - INFO - links.txt + posted.txt updated
+2026-06-20 15:48:06,541 - INFO - Sheet status update: NOT_FOUND
+2026-06-20 15:48:07,487 - INFO - last_post_type.txt updated -> video
+2026-06-20 15:48:07,940 - INFO - ✅ Telegram sent
+2026-06-20 15:48:07,940 - INFO - SUCCESS - posted video - 17896752381468339
