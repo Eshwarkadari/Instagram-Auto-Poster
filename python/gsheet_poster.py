@@ -395,14 +395,13 @@ def get_pinterest_media(original_url: str, forced_type: str = "") -> tuple:
     """
     Extract media URL from Pinterest pin. Returns (url, is_video).
 
-    IMPORTANT: Pinterest's oEmbed ALWAYS wraps pins in <iframe>, for both
-    image and video pins - this is NOT a reliable video signal.
-    Pinterest's PinResource/internal APIs require auth and return 403.
+    Pinterest's real video CDN pattern is:
+      https://v1.pinimg.com/videos/mc/720p/XX/XX/XX/HASH.mp4
+      https://v2.pinimg.com/videos/...
+    NOT just "v.pinimg.com" - must include /videos/ path segment.
 
-    So video/image type comes from the optional `forced_type` parameter,
-    which is read from the sheet's "Type" column ("video" or "image").
-    If not specified, defaults to image (oEmbed thumbnail is always usable
-    as a photo, so this is the safe default).
+    If forced_type="video", we actively search for this real mp4 URL across
+    multiple sources BEFORE falling back to thumbnail+ffmpeg conversion.
     """
     clean_url, pin_id = get_clean_pin_url(original_url)
     if not clean_url or not pin_id:
@@ -411,7 +410,14 @@ def get_pinterest_media(original_url: str, forced_type: str = "") -> tuple:
 
     is_video_requested = forced_type.strip().lower() == "video"
 
-    # Method 1: oEmbed (PRIMARY - works from GitHub Actions)
+    # Regex for Pinterest's real video CDN (handles v1/v2/v without number, /videos/ path required)
+    VIDEO_MP4_PATTERN = r'https://v\d*\.pinimg\.com/videos/[^\s"\'\\<>]+\.mp4'
+    # Looser fallback pattern in case Pinterest changes path structure slightly
+    VIDEO_MP4_PATTERN_LOOSE = r'https://v\d*\.pinimg\.com/[^\s"\'\\<>]+\.mp4'
+
+    oembed_thumb = None  # save in case we need it as a final fallback
+
+    # ── Method 1: oEmbed ───────────────────────────────────────────────────
     for try_url in [clean_url, original_url]:
         for ua in [
             "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
@@ -430,22 +436,58 @@ def get_pinterest_media(original_url: str, forced_type: str = "") -> tuple:
                     oe_html = data.get("html", "")
                     thumb   = data.get("thumbnail_url", "")
 
+                    # Check embed html for real video URL first
+                    vm = re.search(VIDEO_MP4_PATTERN, oe_html, re.I) or re.search(VIDEO_MP4_PATTERN_LOOSE, oe_html, re.I)
+                    if vm:
+                        logger.info("oEmbed embed html VIDEO: " + vm.group(0)[:90])
+                        return vm.group(0), True
+
                     mp4 = re.search(r'src=[\'"]([^\'"]+\.mp4[^\'"]*)[\'"]', oe_html)
                     if mp4:
-                        logger.info("oEmbed direct mp4 found: " + mp4.group(1)[:80])
+                        logger.info("oEmbed iframe src mp4: " + mp4.group(1)[:90])
                         return mp4.group(1), True
 
                     for res in ["236x", "474x", "736x"]:
                         thumb = thumb.replace("/" + res + "/", "/originals/")
                     if thumb and "pinimg.com" in thumb:
-                        logger.info("oEmbed thumbnail: " + thumb[:80] + " | is_video=" + str(is_video_requested))
-                        return thumb, is_video_requested
+                        if not oembed_thumb:
+                            oembed_thumb = thumb
+                        if not is_video_requested:
+                            logger.info("oEmbed thumbnail (image): " + thumb[:80])
+                            return thumb, False
+                        # is_video_requested=True -> keep searching for real mp4,
+                        # don't return thumbnail yet
+                        logger.info("oEmbed gave thumbnail only, still searching for real mp4...")
                 elif r.status_code != 403:
                     logger.warning("oEmbed " + str(r.status_code) + ": " + r.text[:80])
             except Exception as e:
                 logger.warning("oEmbed [" + ua[:20] + "]: " + str(e)[:60])
 
-    # Method 2: Wayback Machine
+    # ── Method 2: PinResource API - search for "videos" JSON object ────────
+    if is_video_requested:
+        try:
+            api_url = (
+                "https://www.pinterest.com/resource/PinResource/get/"
+                "?source_url=/pin/" + pin_id + "/"
+                "&data=%7B%22options%22%3A%7B%22id%22%3A%22" + pin_id + "%22%2C%22field_set_key%22%3A%22detailed%22%7D%7D"
+            )
+            r = requests.get(api_url, timeout=12, headers={
+                "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)",
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": "https://www.pinterest.com/",
+            })
+            logger.info("PinResource HTTP " + str(r.status_code) + " | " + str(len(r.text)) + " chars")
+            if r.status_code == 200 and len(r.text) > 100:
+                raw = r.text.replace("\\/", "/")
+                vm = re.search(VIDEO_MP4_PATTERN, raw, re.I) or re.search(VIDEO_MP4_PATTERN_LOOSE, raw, re.I)
+                if vm:
+                    logger.info("PinResource VIDEO: " + vm.group(0)[:90])
+                    return vm.group(0), True
+        except Exception as e:
+            logger.warning("PinResource: " + str(e)[:60])
+
+    # ── Method 3: Wayback Machine ────────────────────────────────────────────
     try:
         r = requests.get(
             "https://archive.org/wayback/available?url=pinterest.com/pin/" + pin_id + "/",
@@ -457,19 +499,20 @@ def get_pinterest_media(original_url: str, forced_type: str = "") -> tuple:
                 r2 = requests.get(snap["url"], timeout=20, headers={"User-Agent": USER_AGENTS[0]})
                 if r2.status_code == 200:
                     raw = r2.text.replace("\\/", "/")
-                    vm = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'\\<>]+\.mp4', raw, re.I)
+                    vm = re.search(VIDEO_MP4_PATTERN, raw, re.I) or re.search(VIDEO_MP4_PATTERN_LOOSE, raw, re.I)
                     if vm:
-                        logger.info("Method 2 Wayback VIDEO: " + vm.group(0)[:80])
+                        logger.info("Method 3 Wayback VIDEO: " + vm.group(0)[:90])
                         return vm.group(0), True
-                    im = re.search(r'https://i\.pinimg\.com/[^\s"\'\\<>]+\.(jpg|jpeg|png|webp)', raw, re.I)
-                    if im:
-                        img = re.sub(r'/\d+x\d*/', '/originals/', im.group(0))
-                        logger.info("Method 2 Wayback IMAGE: " + img[:80] + " | is_video=" + str(is_video_requested))
-                        return img, is_video_requested
+                    if not is_video_requested:
+                        im = re.search(r'https://i\.pinimg\.com/[^\s"\'\\<>]+\.(jpg|jpeg|png|webp)', raw, re.I)
+                        if im:
+                            img = re.sub(r'/\d+x\d*/', '/originals/', im.group(0))
+                            logger.info("Method 3 Wayback IMAGE: " + img[:80])
+                            return img, False
     except Exception as e:
         logger.warning("Wayback: " + str(e)[:60])
 
-    # Method 3: Mobile pidget API
+    # ── Method 4: Mobile pidget API ──────────────────────────────────────────
     try:
         r = requests.get(
             "https://api.pinterest.com/v3/pidgets/pins/info/?pin_ids=" + pin_id,
@@ -480,19 +523,20 @@ def get_pinterest_media(original_url: str, forced_type: str = "") -> tuple:
         logger.info("Mobile API HTTP " + str(r.status_code) + " | " + str(len(r.text)) + " chars")
         if r.status_code == 200 and len(r.text) > 100:
             raw = r.text.replace("\\/", "/")
-            vm = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'\\<>]+\.mp4', raw, re.I)
+            vm = re.search(VIDEO_MP4_PATTERN, raw, re.I) or re.search(VIDEO_MP4_PATTERN_LOOSE, raw, re.I)
             if vm:
-                logger.info("Method 3 Mobile VIDEO: " + vm.group(0)[:80])
+                logger.info("Method 4 Mobile VIDEO: " + vm.group(0)[:90])
                 return vm.group(0), True
-            im = re.search(r'https://i\.pinimg\.com/[^\s"\'\\<>]+\.(jpg|jpeg|png|webp)', raw, re.I)
-            if im:
-                img = re.sub(r'/\d+x\d*/', '/originals/', im.group(0))
-                logger.info("Method 3 Mobile IMAGE: " + img[:80] + " | is_video=" + str(is_video_requested))
-                return img, is_video_requested
+            if not is_video_requested:
+                im = re.search(r'https://i\.pinimg\.com/[^\s"\'\\<>]+\.(jpg|jpeg|png|webp)', raw, re.I)
+                if im:
+                    img = re.sub(r'/\d+x\d*/', '/originals/', im.group(0))
+                    logger.info("Method 4 Mobile IMAGE: " + img[:80])
+                    return img, False
     except Exception as e:
         logger.warning("Mobile API: " + str(e)[:60])
 
-    # Method 4: ia_archiver bot
+    # ── Method 5: ia_archiver bot ────────────────────────────────────────────
     try:
         r = requests.get(
             "https://www.pinterest.com/pin/" + pin_id + "/",
@@ -500,19 +544,26 @@ def get_pinterest_media(original_url: str, forced_type: str = "") -> tuple:
         logger.info("ia_archiver HTTP " + str(r.status_code) + " | " + str(len(r.text)) + " chars")
         if r.status_code == 200 and "pinimg.com" in r.text:
             raw = r.text.replace("\\/", "/")
-            vm = re.search(r'https://v\d*\.pinimg\.com/[^\s"\'\\<>]+\.mp4', raw, re.I)
+            vm = re.search(VIDEO_MP4_PATTERN, raw, re.I) or re.search(VIDEO_MP4_PATTERN_LOOSE, raw, re.I)
             if vm:
-                logger.info("Method 4 ia_archiver VIDEO: " + vm.group(0)[:80])
+                logger.info("Method 5 ia_archiver VIDEO: " + vm.group(0)[:90])
                 return vm.group(0), True
-            im = re.search(r'https://i\.pinimg\.com/[^\s"\'\\<>]+\.(jpg|jpeg|png|webp)', raw, re.I)
-            if im:
-                img = re.sub(r'/\d+x\d*/', '/originals/', im.group(0))
-                logger.info("Method 4 ia_archiver IMAGE: " + img[:80] + " | is_video=" + str(is_video_requested))
-                return img, is_video_requested
+            if not is_video_requested:
+                im = re.search(r'https://i\.pinimg\.com/[^\s"\'\\<>]+\.(jpg|jpeg|png|webp)', raw, re.I)
+                if im:
+                    img = re.sub(r'/\d+x\d*/', '/originals/', im.group(0))
+                    logger.info("Method 5 ia_archiver IMAGE: " + img[:80])
+                    return img, False
     except Exception as e:
         logger.warning("ia_archiver: " + str(e)[:60])
 
-    raise ValueError("All 4 methods exhausted | pin_id=" + pin_id + " | url=" + original_url)
+    # ── Final fallback: if video was requested but no real mp4 found anywhere,
+    #    use the oEmbed thumbnail (will be converted to mp4 via ffmpeg) ──────
+    if is_video_requested and oembed_thumb:
+        logger.warning("No real Pinterest video URL found - using thumbnail+ffmpeg fallback: " + oembed_thumb[:80])
+        return oembed_thumb, True
+
+    raise ValueError("All methods exhausted | pin_id=" + pin_id + " | url=" + original_url)
 
 
 
@@ -1061,3 +1112,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
