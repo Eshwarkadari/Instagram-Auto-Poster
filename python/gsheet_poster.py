@@ -238,9 +238,9 @@ def update_sheet_status(pin_url: str):
     """Mark URL as POSTED in Google Sheet via Apps Script (searches all columns)."""
     try:
         WEBAPP_URL = ("https://script.google.com/macros/s/"
-                      "AKfycbwkvG2B_ewPkyt2nibNa61i1SOiPno3yj5ikMexuPE6yo3q6xVkuShqbFt9gj5htqgZ/exec")
+                      "AKfycbwAmCT_oqhO3XAkkk2ywyXciNBzyZiUk7bJtKpf0VUkAbE96iVK8Xgf9HLD4vV0Eo11/exec")
         r = requests.get(WEBAPP_URL, params={"url": pin_url}, timeout=20)
-        logger.info("Sheet status update: " + r.text[:100])
+        logger.info("Sheet status update: " + r.text[:200] + " | HTTP " + str(r.status_code))
     except Exception as e:
         logger.warning("Sheet status update: " + str(e))
 
@@ -1112,4 +1112,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
