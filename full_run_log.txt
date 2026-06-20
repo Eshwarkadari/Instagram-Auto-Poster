@@ -1,33 +1,33 @@
-2026-06-20 07:53:52,742 - INFO - ============================================================
-2026-06-20 07:53:52,742 - INFO - Pinterest -> Instagram Auto Poster | v9 ALTERNATING
-2026-06-20 07:53:52,742 - INFO -    Account : 17841429486895129
-2026-06-20 07:53:52,742 - INFO -    Sheet   : 15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960
-2026-06-20 07:53:52,742 - INFO -    Repo    : Eshwarkadari/Instagram-Auto-Poster
-2026-06-20 07:53:52,742 - INFO - ============================================================
-2026-06-20 07:53:53,427 - INFO - Sheet (CSV): 50 raw rows | header=['image_Pinterest_URL', 'Status', 'Video_url_pinterest', 'Status ']
-2026-06-20 07:53:53,429 - INFO - 46 image URLs PENDING | 32 video URLs PENDING
-2026-06-20 07:53:53,594 - INFO - Last posted: video -> This run posts: image
-2026-06-20 07:53:53,594 - INFO - --------------------------------------------------
-2026-06-20 07:53:53,594 - INFO - IMAGE Attempt 1/5: https://pin.it/50zGc6yg6
-2026-06-20 07:53:53,594 - INFO - Processing image: https://pin.it/50zGc6yg6
-2026-06-20 07:53:53,594 - INFO - Resolving shortlink: https://pin.it/50zGc6yg6
-2026-06-20 07:53:55,258 - INFO -   Resolved (HEAD) → https://www.pinterest.com/pin/1132725743800518221/sent/?invite_code=94070ff43890
-2026-06-20 07:53:55,258 - INFO - ✅ Clean URL: https://www.pinterest.com/pin/1132725743800518221/ (pin_id=1132725743800518221)
-2026-06-20 07:53:55,260 - INFO - Working | pin_id=1132725743800518221 | url=https://www.pinterest.com/pin/1132725743800518221/ | forced_type=image
-2026-06-20 07:53:55,903 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (compatible; Googl
-2026-06-20 07:53:55,903 - INFO - oEmbed thumbnail: https://i.pinimg.com/originals/15/5d/50/155d508cb28b374927aeeaf5839dadaa.jpg | is_video=False
-2026-06-20 07:53:56,208 - INFO - ✅ Downloaded IMAGE: 121,023 bytes | https://i.pinimg.com/originals/15/5d/50/155d508cb28b374927ae
-2026-06-20 07:53:56,209 - INFO - 📸 Posting as PHOTO
-2026-06-20 07:53:56,209 - INFO - Uploading image to CDN...
-2026-06-20 07:53:56,748 - WARNING - catbox: HTTP 412 | Invalid uploader
-2026-06-20 07:53:57,339 - INFO - CDN litterbox: https://litter.catbox.moe/izfqhy.jpg
-2026-06-20 07:53:57,340 - INFO - Image CDN: https://litter.catbox.moe/izfqhy.jpg
-2026-06-20 07:54:01,922 - INFO - Container: HTTP 200 | {"id":"18098360221982897"}
-2026-06-20 07:54:07,445 - INFO -   [1/12] FINISHED
-2026-06-20 07:54:11,322 - INFO - 📸 PHOTO POSTED! ID: 18017217173700264
-2026-06-20 07:54:11,324 - INFO - IMAGE POSTED! Instagram Post ID: 18017217173700264
-2026-06-20 07:54:11,851 - INFO - links.txt + posted.txt updated
-2026-06-20 07:54:13,932 - INFO - Sheet status update: UPDATED
-2026-06-20 07:54:14,292 - INFO - last_post_type.txt updated -> image
-2026-06-20 07:54:14,678 - INFO - ✅ Telegram sent
-2026-06-20 07:54:14,678 - INFO - SUCCESS - posted image - 18017217173700264
+2026-06-20 07:55:10,608 - INFO - ============================================================
+2026-06-20 07:55:10,608 - INFO - Pinterest -> Instagram Auto Poster | v9 ALTERNATING
+2026-06-20 07:55:10,608 - INFO -    Account : 17841429486895129
+2026-06-20 07:55:10,608 - INFO -    Sheet   : 15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960
+2026-06-20 07:55:10,609 - INFO -    Repo    : Eshwarkadari/Instagram-Auto-Poster
+2026-06-20 07:55:10,609 - INFO - ============================================================
+2026-06-20 07:55:10,940 - INFO - Sheet (CSV): 50 raw rows | header=['image_Pinterest_URL', 'Status', 'Video_url_pinterest', 'Status ']
+2026-06-20 07:55:10,942 - INFO - 45 image URLs PENDING | 32 video URLs PENDING
+2026-06-20 07:55:10,987 - INFO - Last posted: video -> This run posts: image
+2026-06-20 07:55:10,987 - INFO - --------------------------------------------------
+2026-06-20 07:55:10,987 - INFO - IMAGE Attempt 1/5: https://pin.it/6bz899aXt
+2026-06-20 07:55:10,987 - INFO - Processing image: https://pin.it/6bz899aXt
+2026-06-20 07:55:10,987 - INFO - Resolving shortlink: https://pin.it/6bz899aXt
+2026-06-20 07:55:11,879 - INFO -   Resolved (HEAD) → https://www.pinterest.com/pin/1132725743800518211/sent/?invite_code=3becc887f07a
+2026-06-20 07:55:11,879 - INFO - ✅ Clean URL: https://www.pinterest.com/pin/1132725743800518211/ (pin_id=1132725743800518211)
+2026-06-20 07:55:11,881 - INFO - Working | pin_id=1132725743800518211 | url=https://www.pinterest.com/pin/1132725743800518211/ | forced_type=image
+2026-06-20 07:55:12,222 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (compatible; Googl
+2026-06-20 07:55:12,222 - INFO - oEmbed thumbnail: https://i.pinimg.com/originals/a4/93/7e/a4937e90ffdce36c3bd042b95131272f.jpg | is_video=False
+2026-06-20 07:55:12,352 - INFO - ✅ Downloaded IMAGE: 128,434 bytes | https://i.pinimg.com/originals/a4/93/7e/a4937e90ffdce36c3bd0
+2026-06-20 07:55:12,353 - INFO - 📸 Posting as PHOTO
+2026-06-20 07:55:12,353 - INFO - Uploading image to CDN...
+2026-06-20 07:55:13,026 - WARNING - catbox: HTTP 412 | Invalid uploader
+2026-06-20 07:55:13,468 - INFO - CDN litterbox: https://litter.catbox.moe/dskgko.jpg
+2026-06-20 07:55:13,469 - INFO - Image CDN: https://litter.catbox.moe/dskgko.jpg
+2026-06-20 07:55:18,498 - INFO - Container: HTTP 200 | {"id":"18098360308982897"}
+2026-06-20 07:55:24,029 - INFO -   [1/12] FINISHED
+2026-06-20 07:55:27,430 - INFO - 📸 PHOTO POSTED! ID: 17985625601838699
+2026-06-20 07:55:27,433 - INFO - IMAGE POSTED! Instagram Post ID: 17985625601838699
+2026-06-20 07:55:27,562 - INFO - links.txt + posted.txt updated
+2026-06-20 07:55:30,182 - INFO - Sheet status update: UPDATED
+2026-06-20 07:55:30,273 - INFO - last_post_type.txt updated -> image
+2026-06-20 07:55:30,572 - INFO - ✅ Telegram sent
+2026-06-20 07:55:30,572 - INFO - SUCCESS - posted image - 17985625601838699
