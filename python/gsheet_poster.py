@@ -1070,10 +1070,11 @@ def main():
         want_type = "image"
 
     queue = image_pending if want_type == "image" else video_pending
-    MAX_TRY = min(5, len(queue))
+    MAX_TRY = min(3, len(queue))
     posted = False
     post_id = None
     posted_url = None
+    rate_limited = False
 
     for i, pin_url in enumerate(queue[:MAX_TRY], 1):
         logger.info("-" * 50)
@@ -1086,7 +1087,14 @@ def main():
             posted_url = pin_url
             break
         except Exception as e:
-            logger.warning(want_type.upper() + " skip: " + str(e)[:120])
+            err_str = str(e)
+            logger.warning(want_type.upper() + " skip: " + err_str[:200])
+            # Instagram's publishing quota (25 posts/24h) - stop immediately,
+            # retrying with a different URL will hit the same wall every time
+            if "Application request limit reached" in err_str or "request limit" in err_str.lower():
+                logger.error("Instagram publishing rate limit hit - stopping retries (would waste quota)")
+                rate_limited = True
+                break
             continue
 
     if posted:
@@ -1101,6 +1109,14 @@ def main():
             "Time: " + time.strftime("%Y-%m-%d %H:%M") + " IST\n\n"
             "Remaining: " + str(remaining_img) + " images / " + str(remaining_vid) + " videos")
         logger.info("SUCCESS - posted " + want_type + " - " + str(post_id))
+    elif rate_limited:
+        logger.error("Stopped due to Instagram rate limit - will retry next scheduled run")
+        send_telegram(
+            "<b>Instagram Rate Limit Hit</b>\n\n"
+            "Could not post " + want_type + " - Instagram's publishing quota "
+            "(25 posts/24h) is temporarily exhausted.\n\n"
+            "This will resolve automatically within 24 hours.\n"
+            "No action needed - next scheduled run will retry.")
     else:
         logger.error("Failed to post " + want_type + " after " + str(MAX_TRY) + " attempts")
         send_telegram(
@@ -1112,5 +1128,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
