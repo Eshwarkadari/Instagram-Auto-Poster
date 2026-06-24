@@ -1,11 +1,101 @@
-TOKEN CHECK STATUS=200
-BODY={"id":"17841429486895129","username":"styleformenindia"}
-
-HEADERS:
-  x-business-use-case-usage: {"1052374397970541":[{"type":"instagram","call_count":1,"total_cputime":1,"total_time":1,"estimated_time_to_regain_access":0}],"17841429486895129":[{"type":"instagram","call_count":1,"total_cputime":1,"total_time":1,"estimated_time_to_regain_access":0}]}
-
-MEDIA LIST CHECK STATUS=200
-BODY={"data":[{"id":"17900456142308766"}],"paging":{"cursors":{"before":"QVFIU1FKRUI1ZAWF5WDhKWDJTeXFJR3R5V1NNVTZAsbmtqUmtnXzBYMnh6YVJrN09nMllVcFh2N0g4Q1A3QXYxT1JNdDZAGdWJiZAVJJbzh2ZA1J6VEQ4a0RZAeW5B","after":"QVFIU1FKRUI1ZAWF5WDhKWDJTeXFJR3R5V1NNVTZAsbmtqUmtnXzBYMnh6YVJrN09nMllVcFh2N0g4Q1A3QXYxT1JNdDZAGdWJiZAVJJbzh2ZA1J6VEQ4a0RZAeW5B"},"next":"https:\/\/graph.facebook.com\/v25.0\/17841429486895129\/media?fields=id&limit=1&access_token=EAFZC2WuUYHFMBRqczaq2UuZCM98SKcdL6oBZAPjq2y0g1mmzjKrpzvxkQXgBUXmH
-
-HEADERS:
-  x-business-use-case-usage: {"1052374397970541":[{"type":"instagram","call_count":1,"total_cputime":1,"total_time":1,"estimated_time_to_regain_access":0}],"17841429486895129":[{"type":"instagram","call_count":1,"total_cputime":1,"total_time":1,"estimated_time_to_regain_access":0}]}
+2026-06-24 08:47:10,720 - INFO - ============================================================
+2026-06-24 08:47:10,720 - INFO - Pinterest -> Instagram Auto Poster | v9 ALTERNATING
+2026-06-24 08:47:10,720 - INFO -    Account : 17841429486895129
+2026-06-24 08:47:10,720 - INFO -    Sheet   : 15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960
+2026-06-24 08:47:10,720 - INFO -    Repo    : Eshwarkadari/Instagram-Auto-Poster
+2026-06-24 08:47:10,720 - INFO - ============================================================
+2026-06-24 08:47:11,283 - INFO - Sheet (CSV): 50 raw rows | header=['image_Pinterest_URL', 'Status', 'Video_url_pinterest', 'Status ']
+2026-06-24 08:47:11,285 - INFO - 42 image URLs PENDING | 29 video URLs PENDING
+2026-06-24 08:47:11,493 - INFO - Last posted: video -> This run posts: image
+2026-06-24 08:47:11,493 - INFO - --------------------------------------------------
+2026-06-24 08:47:11,493 - INFO - IMAGE Attempt 1/5: https://pin.it/3jhflNg0W
+2026-06-24 08:47:11,493 - INFO - Processing image: https://pin.it/3jhflNg0W
+2026-06-24 08:47:11,493 - INFO - Resolving shortlink: https://pin.it/3jhflNg0W
+2026-06-24 08:47:12,560 - INFO -   Resolved (HEAD) → https://www.pinterest.com/pin/990229036839572339/sent/?invite_code=7473291685134
+2026-06-24 08:47:12,561 - INFO - ✅ Clean URL: https://www.pinterest.com/pin/990229036839572339/ (pin_id=990229036839572339)
+2026-06-24 08:47:12,562 - INFO - Working | pin_id=990229036839572339 | url=https://www.pinterest.com/pin/990229036839572339/ | forced_type=image
+2026-06-24 08:47:12,820 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (compatible; Googl
+2026-06-24 08:47:12,820 - INFO - oEmbed thumbnail (image): https://i.pinimg.com/originals/25/0f/30/250f30a4f96125d536a99fcbaabf4ad6.jpg
+2026-06-24 08:47:13,156 - INFO - ✅ Downloaded IMAGE: 117,656 bytes | https://i.pinimg.com/originals/25/0f/30/250f30a4f96125d536a9
+2026-06-24 08:47:13,157 - INFO - 📸 Posting as PHOTO
+2026-06-24 08:47:13,157 - INFO - Uploading image to CDN...
+2026-06-24 08:47:13,832 - WARNING - catbox: HTTP 412 | Invalid uploader
+2026-06-24 08:47:14,229 - INFO - CDN litterbox: https://litter.catbox.moe/1rco1n.jpg
+2026-06-24 08:47:14,230 - INFO - Image CDN: https://litter.catbox.moe/1rco1n.jpg
+2026-06-24 08:47:18,333 - INFO - Container: HTTP 200 | {"id":"18099025762982897"}
+2026-06-24 08:47:23,680 - INFO -   [1/12] FINISHED
+2026-06-24 08:47:26,239 - WARNING - IMAGE skip: Photo publish failed: {"error":{"message":"Application request limit reached","type":"OAuthException","is_transient":fal
+2026-06-24 08:47:26,241 - INFO - --------------------------------------------------
+2026-06-24 08:47:26,241 - INFO - IMAGE Attempt 2/5: https://pin.it/46xTCSRgY
+2026-06-24 08:47:26,242 - INFO - Processing image: https://pin.it/46xTCSRgY
+2026-06-24 08:47:26,242 - INFO - Resolving shortlink: https://pin.it/46xTCSRgY
+2026-06-24 08:47:27,091 - INFO -   Resolved (HEAD) → https://www.pinterest.com/pin/1134766437385886328/sent/?invite_code=45a5e2060072
+2026-06-24 08:47:27,091 - INFO - ✅ Clean URL: https://www.pinterest.com/pin/1134766437385886328/ (pin_id=1134766437385886328)
+2026-06-24 08:47:27,092 - INFO - Working | pin_id=1134766437385886328 | url=https://www.pinterest.com/pin/1134766437385886328/ | forced_type=image
+2026-06-24 08:47:27,398 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (compatible; Googl
+2026-06-24 08:47:27,398 - INFO - oEmbed thumbnail (image): https://i.pinimg.com/originals/22/ee/ef/22eeef88af3fa205fea5d2ada9ee7c2a.jpg
+2026-06-24 08:47:27,733 - INFO - ✅ Downloaded IMAGE: 126,765 bytes | https://i.pinimg.com/originals/22/ee/ef/22eeef88af3fa205fea5
+2026-06-24 08:47:27,733 - INFO - 📸 Posting as PHOTO
+2026-06-24 08:47:27,734 - INFO - Uploading image to CDN...
+2026-06-24 08:47:28,166 - WARNING - catbox: HTTP 412 | Invalid uploader
+2026-06-24 08:47:28,567 - INFO - CDN litterbox: https://litter.catbox.moe/9p6ypl.jpg
+2026-06-24 08:47:28,568 - INFO - Image CDN: https://litter.catbox.moe/9p6ypl.jpg
+2026-06-24 08:47:32,486 - INFO - Container: HTTP 200 | {"id":"18099025813982897"}
+2026-06-24 08:47:37,770 - INFO -   [1/12] FINISHED
+2026-06-24 08:47:41,705 - WARNING - IMAGE skip: Photo publish failed: {"error":{"message":"Application request limit reached","type":"OAuthException","is_transient":fal
+2026-06-24 08:47:41,708 - INFO - --------------------------------------------------
+2026-06-24 08:47:41,708 - INFO - IMAGE Attempt 3/5: https://pin.it/3T7LTTlmg
+2026-06-24 08:47:41,708 - INFO - Processing image: https://pin.it/3T7LTTlmg
+2026-06-24 08:47:41,708 - INFO - Resolving shortlink: https://pin.it/3T7LTTlmg
+2026-06-24 08:47:42,685 - INFO -   Resolved (HEAD) → https://www.pinterest.com/pin/948922584301163890/sent/?invite_code=47ea2d0fb82f4
+2026-06-24 08:47:42,685 - INFO - ✅ Clean URL: https://www.pinterest.com/pin/948922584301163890/ (pin_id=948922584301163890)
+2026-06-24 08:47:42,687 - INFO - Working | pin_id=948922584301163890 | url=https://www.pinterest.com/pin/948922584301163890/ | forced_type=image
+2026-06-24 08:47:43,004 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (compatible; Googl
+2026-06-24 08:47:43,004 - INFO - oEmbed thumbnail (image): https://i.pinimg.com/originals/0f/3d/49/0f3d49d9d80e93208b683df89013b487.jpg
+2026-06-24 08:47:43,360 - INFO - ✅ Downloaded IMAGE: 142,049 bytes | https://i.pinimg.com/originals/0f/3d/49/0f3d49d9d80e93208b68
+2026-06-24 08:47:43,361 - INFO - 📸 Posting as PHOTO
+2026-06-24 08:47:43,361 - INFO - Uploading image to CDN...
+2026-06-24 08:47:44,001 - WARNING - catbox: HTTP 412 | Invalid uploader
+2026-06-24 08:47:44,383 - INFO - CDN litterbox: https://litter.catbox.moe/1gynxk.jpg
+2026-06-24 08:47:44,383 - INFO - Image CDN: https://litter.catbox.moe/1gynxk.jpg
+2026-06-24 08:47:48,810 - INFO - Container: HTTP 200 | {"id":"18099025834982897"}
+2026-06-24 08:47:54,133 - INFO -   [1/12] FINISHED
+2026-06-24 08:47:56,551 - WARNING - IMAGE skip: Photo publish failed: {"error":{"message":"Application request limit reached","type":"OAuthException","is_transient":fal
+2026-06-24 08:47:56,554 - INFO - --------------------------------------------------
+2026-06-24 08:47:56,554 - INFO - IMAGE Attempt 4/5: https://pin.it/1WWqPaCHX
+2026-06-24 08:47:56,554 - INFO - Processing image: https://pin.it/1WWqPaCHX
+2026-06-24 08:47:56,554 - INFO - Resolving shortlink: https://pin.it/1WWqPaCHX
+2026-06-24 08:47:57,273 - INFO -   Resolved (HEAD) → https://www.pinterest.com/pin/1085367578971456127/sent/?invite_code=f3181a1e5996
+2026-06-24 08:47:57,273 - INFO - ✅ Clean URL: https://www.pinterest.com/pin/1085367578971456127/ (pin_id=1085367578971456127)
+2026-06-24 08:47:57,275 - INFO - Working | pin_id=1085367578971456127 | url=https://www.pinterest.com/pin/1085367578971456127/ | forced_type=image
+2026-06-24 08:47:57,710 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (compatible; Googl
+2026-06-24 08:47:57,710 - INFO - oEmbed thumbnail (image): https://i.pinimg.com/originals/20/20/7f/20207f7ff65141991c374f73a7e23a7b.jpg
+2026-06-24 08:47:57,970 - INFO - ✅ Downloaded IMAGE: 123,696 bytes | https://i.pinimg.com/originals/20/20/7f/20207f7ff65141991c37
+2026-06-24 08:47:57,971 - INFO - 📸 Posting as PHOTO
+2026-06-24 08:47:57,971 - INFO - Uploading image to CDN...
+2026-06-24 08:47:58,411 - WARNING - catbox: HTTP 412 | Invalid uploader
+2026-06-24 08:47:59,115 - INFO - CDN litterbox: https://litter.catbox.moe/iqjbjn.jpg
+2026-06-24 08:47:59,116 - INFO - Image CDN: https://litter.catbox.moe/iqjbjn.jpg
+2026-06-24 08:48:03,143 - INFO - Container: HTTP 200 | {"id":"18099025858982897"}
+2026-06-24 08:48:08,454 - INFO -   [1/12] FINISHED
+2026-06-24 08:48:11,139 - WARNING - IMAGE skip: Photo publish failed: {"error":{"message":"Application request limit reached","type":"OAuthException","is_transient":fal
+2026-06-24 08:48:11,141 - INFO - --------------------------------------------------
+2026-06-24 08:48:11,142 - INFO - IMAGE Attempt 5/5: https://pin.it/2tXobNuzx
+2026-06-24 08:48:11,142 - INFO - Processing image: https://pin.it/2tXobNuzx
+2026-06-24 08:48:11,142 - INFO - Resolving shortlink: https://pin.it/2tXobNuzx
+2026-06-24 08:48:11,784 - INFO -   Resolved (HEAD) → https://www.pinterest.com/pin/1108378158337094663/sent/?invite_code=a1992e22e2fa
+2026-06-24 08:48:11,784 - INFO - ✅ Clean URL: https://www.pinterest.com/pin/1108378158337094663/ (pin_id=1108378158337094663)
+2026-06-24 08:48:11,786 - INFO - Working | pin_id=1108378158337094663 | url=https://www.pinterest.com/pin/1108378158337094663/ | forced_type=image
+2026-06-24 08:48:12,066 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (compatible; Googl
+2026-06-24 08:48:12,066 - INFO - oEmbed thumbnail (image): https://i.pinimg.com/originals/ae/4a/8f/ae4a8f9ae38e54aaf2762143338ff82c.jpg
+2026-06-24 08:48:12,495 - INFO - ✅ Downloaded IMAGE: 98,246 bytes | https://i.pinimg.com/originals/ae/4a/8f/ae4a8f9ae38e54aaf276
+2026-06-24 08:48:12,495 - INFO - 📸 Posting as PHOTO
+2026-06-24 08:48:12,496 - INFO - Uploading image to CDN...
+2026-06-24 08:48:12,909 - WARNING - catbox: HTTP 412 | Invalid uploader
+2026-06-24 08:48:13,287 - INFO - CDN litterbox: https://litter.catbox.moe/0zo2gw.jpg
+2026-06-24 08:48:13,288 - INFO - Image CDN: https://litter.catbox.moe/0zo2gw.jpg
+2026-06-24 08:48:16,991 - INFO - Container: HTTP 200 | {"id":"18099025876982897"}
+2026-06-24 08:48:22,446 - INFO -   [1/12] FINISHED
+2026-06-24 08:48:25,004 - WARNING - IMAGE skip: Photo publish failed: {"error":{"message":"Application request limit reached","type":"OAuthException","is_transient":fal
+2026-06-24 08:48:25,006 - ERROR - Failed to post image after 5 attempts
+2026-06-24 08:48:25,395 - INFO - ✅ Telegram sent
