@@ -21,48 +21,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install ffmpeg
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y ffmpeg
-          ffmpeg -version | head -1
-
       - name: Install dependencies
         run: pip install requests==2.31.0
 
-      - name: Run Instagram Auto Poster (capture log)
+      - name: CHECK TOKEN AND RATE LIMIT
         env:
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
           INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          GITHUB_REPO: ${{ github.repository }}
-        run: python python/gsheet_poster.py 2>&1 | tee full_run_log.txt
-
-      - name: Push full log via API
-        if: always()
-        env:
           DEBUG_GH_TOKEN: ${{ secrets.DEBUG_GH_TOKEN }}
           GITHUB_REPO: ${{ github.repository }}
-        run: |
-          python3 -c "
-          import requests, base64, os, time
-          token = os.environ['DEBUG_GH_TOKEN']
-          repo = os.environ['GITHUB_REPO']
-          with open('full_run_log.txt','r') as f:
-              content = f.read()
-          b64 = base64.b64encode(content.encode()).decode()
-          sha = None
-          r = requests.get(f'https://api.github.com/repos/{repo}/contents/full_run_log.txt',
-                            headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json'})
-          if r.status_code == 200:
-              sha = r.json().get('sha')
-          payload = {'message':'debug: log ' + str(int(time.time())), 'content': b64}
-          if sha: payload['sha'] = sha
-          r2 = requests.put(f'https://api.github.com/repos/{repo}/contents/full_run_log.txt',
-                             headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json'},
-                             json=payload)
-          print('Push status:', r2.status_code)
-          "
+        run: python python/check_token.py
