@@ -1,2 +1,0 @@
-CONTENT_PUBLISHING_LIMIT STATUS=200
-BODY={"data":[{"config":{"quota_total":100,"quota_duration":86400},"quota_usage":0}]}
