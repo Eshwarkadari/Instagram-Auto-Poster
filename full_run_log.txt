@@ -1,0 +1,30 @@
+2026-06-27 16:42:59,669 - INFO - ============================================================
+2026-06-27 16:42:59,669 - INFO - Pinterest -> Instagram Auto Poster | v9 ALTERNATING
+2026-06-27 16:42:59,669 - INFO -    Account : 17841429486895129
+2026-06-27 16:42:59,669 - INFO -    Sheet   : 15jDXVQTA7mjc9vWkF134EGWGvmvdNrzchNsjdSbN960
+2026-06-27 16:42:59,669 - INFO -    Repo    : Eshwarkadari/Instagram-Auto-Poster
+2026-06-27 16:42:59,669 - INFO - ============================================================
+2026-06-27 16:43:00,439 - INFO - Sheet (CSV): 50 raw rows | header=['image_Pinterest_URL', 'Status', 'Video_url_pinterest', 'Status ']
+2026-06-27 16:43:00,441 - INFO - 42 image URLs PENDING | 29 video URLs PENDING
+2026-06-27 16:43:00,571 - INFO - Last posted: video -> This run posts: image
+2026-06-27 16:43:00,571 - INFO - --------------------------------------------------
+2026-06-27 16:43:00,572 - INFO - IMAGE Attempt 1/3: https://pin.it/3jhflNg0W
+2026-06-27 16:43:00,572 - INFO - Processing image: https://pin.it/3jhflNg0W
+2026-06-27 16:43:00,572 - INFO - Resolving shortlink: https://pin.it/3jhflNg0W
+2026-06-27 16:43:01,227 - INFO -   Resolved (HEAD) → https://www.pinterest.com/pin/990229036839572339/sent/?invite_code=7473291685134
+2026-06-27 16:43:01,228 - INFO - ✅ Clean URL: https://www.pinterest.com/pin/990229036839572339/ (pin_id=990229036839572339)
+2026-06-27 16:43:01,229 - INFO - Working | pin_id=990229036839572339 | url=https://www.pinterest.com/pin/990229036839572339/ | forced_type=image
+2026-06-27 16:43:01,458 - INFO - oEmbed HTTP 200 ua=Mozilla/5.0 (compatible; Googl
+2026-06-27 16:43:01,459 - INFO - oEmbed thumbnail (image): https://i.pinimg.com/originals/25/0f/30/250f30a4f96125d536a99fcbaabf4ad6.jpg
+2026-06-27 16:43:01,537 - INFO - ✅ Downloaded IMAGE: 117,656 bytes | https://i.pinimg.com/originals/25/0f/30/250f30a4f96125d536a9
+2026-06-27 16:43:01,537 - INFO - 📸 Posting as PHOTO
+2026-06-27 16:43:01,538 - INFO - Uploading image to CDN...
+2026-06-27 16:43:02,171 - WARNING - catbox: HTTP 412 | Invalid uploader
+2026-06-27 16:43:52,146 - INFO - CDN litterbox: https://litter.catbox.moe/4b28yk.jpg
+2026-06-27 16:43:52,147 - INFO - Image CDN: https://litter.catbox.moe/4b28yk.jpg
+2026-06-27 16:43:56,405 - INFO - Container: HTTP 200 | {"id":"18099578008982897"}
+2026-06-27 16:44:01,778 - INFO -   [1/12] FINISHED
+2026-06-27 16:44:04,504 - WARNING - IMAGE skip: Photo publish failed: {"error":{"message":"Application request limit reached","type":"OAuthException","is_transient":false,"code":4,"error_subcode":2207051,"error_user_title":"Action is blocked","erro
+2026-06-27 16:44:04,504 - ERROR - Instagram publishing rate limit hit - stopping retries (would waste quota)
+2026-06-27 16:44:04,507 - ERROR - Stopped due to Instagram rate limit - will retry next scheduled run
+2026-06-27 16:44:04,902 - INFO - ✅ Telegram sent
