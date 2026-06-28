@@ -1,10 +1,24 @@
 name: Instagram Auto Poster - Google Sheets
 
+# SCHEDULE PAUSED (2026-06-25): Instagram flagged the account for spam-like
+# publishing behavior (error code 4 / subcode 2207051) after a debugging
+# burst posted duplicate content rapidly. Quota itself is fine (0/100 used),
+# but the trust/behavior restriction needs time + reduced activity to clear.
+#
+# To resume:
+#   1. Wait at least 48-72 hours with NO posting attempts (manual or automatic)
+#   2. Test with ONE manual post directly from the Instagram app to confirm
+#      the account can post normally again
+#   3. Uncomment the "schedule:" block below and push
+#
+# Manual runs are still possible via "Run workflow" button (workflow_dispatch)
+# if you want to test the automation again once ready - just avoid spamming it.
+
 on:
-  schedule:
-    - cron: '0 3 * * *'
-    - cron: '0 9 * * *'
-    - cron: '30 15 * * *'
+  # schedule:
+  #   - cron: '0 3 * * *'
+  #   - cron: '0 9 * * *'
+  #   - cron: '30 15 * * *'
   workflow_dispatch:
 
 jobs:
